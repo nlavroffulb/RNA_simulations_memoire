@@ -66,8 +66,6 @@ public:
 	int get_last_y();//when the structure was created and generated, 
 	//it is grown with 2 strands, s_x and s_y. this function gets the last monomer grown in the y strand.
 	int get_mon_before_origin();
-	std::vector<double> get_rc_0();
-	std::vector<double> get_rc_1();
 	std::vector<double> get_rc(int index);
 	void set_rc(int index, std::vector<double> new_rc);
 };

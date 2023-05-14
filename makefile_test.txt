@@ -1,0 +1,22 @@
+CC = gcc #compiler for cpp is gpp
+
+#compiler flags
+CFLAGS = -g -Wall
+
+#generate objects
+g++ -c main.cpp
+g++ -c polymer_class.cpp
+g++ -c monomer_class.cpp
+
+#link object files together
+g++ -o main main.o polymer_class.o monomer_class.o
+
+#targets, dependencies
+main: main.o polymer_class.o monomer_class.o
+    $(CC) $(CFLAGS) -o main main.o Point.o Square.o
+
+main.o: main.cpp polymer_class.o monomer_class.o
+
+polymer_class.o: polymer_class.h
+
+monomer_class.o: monomer_class.h

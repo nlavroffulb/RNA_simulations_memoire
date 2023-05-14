@@ -22,7 +22,7 @@ void generate(int region_length,
 
 void generate(int region_length,
     std::vector<double>& v, std::vector<double>& u, std::vector<double>& x,
-    std::vector<std::vector<double>>& s_x, std::vector<std::vector<double>>& s_y, helix_struct* helix);
+    std::vector<std::vector<double>>& s_x, std::vector<std::vector<double>>& s_y, std::vector<std::vector<double>> &running_cs);
 
 void reverse_generate(int region_length, std::vector<double>& v,
     std::vector<double>& u, std::vector<double>& x, std::vector<double> y,

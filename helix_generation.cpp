@@ -1,7 +1,7 @@
 #include "helix_generation.h"
 #include "math_functions.h"
 #include "polymer_generation.h"
-#include "unbound_section_class.h"
+#include "rosenbluth_growth_class.h"
 
 std::string random_base() {
     int rn = rand() % 4;
@@ -109,8 +109,9 @@ double helix_separation() {
 
 }
 
-//rotate u around v of theta
-std::vector<double> rotate_helix(std::vector<double>& u, std::vector<double>& v, double the) {
+//rotate u around v by angle theta
+std::vector<double> rotate_helix(std::vector<double>& u, std::vector<double>& v, double the) {// v is the axis of rotation
+    normalize(v);
     double cthe = cos(the);
     double sthe = sin(the);
     double v_dot_u = dot_product(u, v);
@@ -219,7 +220,7 @@ void generate(int region_length, std::vector<double>& v,
 
 void generate(int region_length,
     std::vector<double>& v, std::vector<double>& u, std::vector<double>& x,
-    std::vector<std::vector<double>>& s_x, std::vector<std::vector<double>>& s_y, helix_struct* helix) {
+    std::vector<std::vector<double>>& s_x, std::vector<std::vector<double>>& s_y, std::vector<std::vector<double>> &running_cs) {
 
     int n{ region_length };
     std::vector<std::vector<double>> strand_x(n);
@@ -228,7 +229,9 @@ void generate(int region_length,
     std::vector<double> running_centre{ vector_subtraction(x,temp) };
 
 
-    helix->set_running_x_strand_centre(running_centre);
+    //helix->set_running_x_strand_centre(running_centre);
+    std::vector < std::vector<double>> temp_rcs(2);
+    temp_rcs[0] = running_centre;
 
     std::vector<double> w{ rotate_helix(u,v,theta) };
 
@@ -276,8 +279,11 @@ void generate(int region_length,
         running_n++;
 
     }
-    helix->set_running_y_strand_centre(running_centre);
-    
+    //helix->set_running_y_strand_centre(running_centre);
+    temp_rcs[1] = running_centre;
+    running_cs = temp_rcs;
+
+
     s_x = strand_x;
     s_y = strand_y;
 
