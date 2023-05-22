@@ -64,6 +64,46 @@ std::vector<double> sample_unit_perp_vector(std::vector<double> u) {
 
     return normalize(v);
 }
+
+#include <cmath>
+
+// Rotate a point or vector by an angle theta about an axis u.
+//chatGPT.
+std::vector<double> rotate_by_angle_about_general_axis(std::vector<double> point, std::vector<double> axis, double theta, std::vector<double> origin) {
+
+    // Translate the point to the origin.
+    std::vector<double> translatedPoint(3);
+    for (int i = 0; i < 3; i++) {
+        translatedPoint[i] = point[i] - origin[i];
+    }
+    // Normalize the axis.
+    double axisLength = sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    std::vector<double> normalizedAxis = { axis[0] / axisLength, axis[1] / axisLength, axis[2] / axisLength };
+
+    // Calculate the sin and cos of theta.
+    double sinTheta = sin(theta);
+    double cosTheta = cos(theta);
+
+    // Calculate the components of the rotation matrix.
+    double ux = normalizedAxis[0];
+    double uy = normalizedAxis[1];
+    double uz = normalizedAxis[2];
+    double oneMinusCosTheta = 1 - cosTheta;
+
+    // Calculate the rotation matrix.
+    double rotation[3][3] = { {cosTheta + ux * ux * oneMinusCosTheta, ux * uy * oneMinusCosTheta - uz * sinTheta, ux * uz * oneMinusCosTheta + uy * sinTheta},
+                             {uy * ux * oneMinusCosTheta + uz * sinTheta, cosTheta + uy * uy * oneMinusCosTheta, uy * uz * oneMinusCosTheta - ux * sinTheta},
+                             {uz * ux * oneMinusCosTheta - uy * sinTheta, uz * uy * oneMinusCosTheta + ux * sinTheta, cosTheta + uz * uz * oneMinusCosTheta} };
+
+    // Apply the rotation to the point.
+    std::vector<double> rotatedPoint(3);
+    for (int i = 0; i < 3; i++) {
+        rotatedPoint[i] = rotation[i][0] * translatedPoint[0] + rotation[i][1] * translatedPoint[1] + rotation[i][2] * translatedPoint[2];
+    }
+    rotatedPoint = vector_addition(rotatedPoint, origin);
+    return rotatedPoint;
+}
+
 //**************************************************************************************////**************************************************************************************//
 //**************************************************************************************////**************************************************************************************//
 //**************************************************************************************////**************************************************************************************//
@@ -96,6 +136,15 @@ double sum_of_elements(std::vector<double> v)
     for (auto& n : v)
         sum += n;
     return sum;
+}
+
+double product_of_elements(std::vector<double>& v) {
+    double prod{ 1 };
+
+    for (auto& n : v) {
+        prod *= n;
+    }
+    return prod;
 }
 //**************************************************************************************////**************************************************************************************//
 //**************************************************************************************////**************************************************************************************//

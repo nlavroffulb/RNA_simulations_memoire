@@ -3,14 +3,11 @@
 
 #include "monomer_class.h"
 #include "helix_struct.h"
-#include "unbound_section_class.h"
+#include "rosenbluth_growth_class.h"
 #include "polymer_generation.h"
-//#include "rosenbluth_sampling.h"
 #include "helix_generation.h"
 #include "math_functions.h"
 
-//#include "structure_class.h"
-//#include "math_functions.h"
 
 
 
@@ -25,8 +22,14 @@ protected:
 
     std::vector<std::vector<double>> excluded_volume;
 
-    unbound_section* hairpin_section;
-    unbound_section* free_section;
+    rosenbluth_growth* hairpin_section;
+    rosenbluth_growth* free_section;
+
+    // data for acceptance probability calculation.
+    std::vector<std::vector<int>> regrowth_lims;
+    std::vector<std::vector < double >> regrown_positions;
+    rosenbluth_growth* accepted_weights;
+    rosenbluth_growth* proposed_weights;
 
 private:
     int N{ 0 };
@@ -56,10 +59,6 @@ public:
     //operator functions
     monomer* operator[](int i);
 
-    //compatibility
-    //bool base_pairing_rules(char b1, char b2);//could go to helix header
-    //std::vector<int> position_of_region(int i, int r);
-    //bool regions_compatible(std::string r1, std::string r2);//could go to helix header
 
     std::vector<std::vector<int>> structure_search(int n=3);
     std::vector<int> sample_structure(std::vector<std::vector<std::vector<int>>> potential_structures);
@@ -75,56 +74,63 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     bool overlapping_monomers(std::vector<int> &reaction_region);
-    bool reject_link(std::vector<int> &link_region, int &alpha, int&beta);
-    void link();
-    void unlink();
-
     void structure_extension(std::vector<int> &s, int &index);
 
     void update_large_struct_list();
 
     void update_extensible_structures();
 
-
     bool zip_structure_overlap(std::vector<int> s_z, int side);
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    void unlink();
+    void unlink_update(int s_index); // if move is accepted
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    bool linked();
+    void sample_link_region(std::vector<int>& link, int& alpha, int& beta, int& ss_index);
+    bool reject_link1(std::vector<int>& link_region, int alpha, int beta);
+    void link(std::vector<int>& link_region, int alpha, int beta, int ss_index);
+    void link_update(int ss_index, int a, int b, std::vector<double>&v, std::vector<std::vector<double>> &rcentres);
 
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     void zip_growth_limits(std::vector<int>& s, int side, std::vector<std::vector<int>>& growth_limits);
     bool reject_zip(std::vector<int>& s, std::vector < std::vector<double>> new_positions, int side);
     void zip(bool &success);
     void sample_zip_move();
+    void sample_zip_region(std::vector<int>& region_to_zip, std::vector<int>& extension, int side);
+    void zip_update();
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     void sample_unzip_region(std::vector<int>& region_to_unzip, int side);
-
-
     void unzip(bool& success);
-    //void reject_unzip(std::vector<int>& s, int alpha, int beta);
-
     void unzip_growth_linits(std::vector<int>& s, int side, std::vector<std::vector<int>>& growth_limits);
-
-    void sample_zip_region(std::vector<int>& region_to_zip, std::vector<int>&extension, int side);
-
-    void neighbouring_linkers();
-
-    void grow_limits(std::vector<std::vector<int>> &limits, int alpha);
+    void unzip_update();
 
     ////////// for the simplistic hairpin simulation ////////////////////////
-    bool linked();
-    void link1(std::vector<int>& link_region, int alpha, int beta, int ss_index);
-    void sample_link_region(std::vector<int>& link, int& alpha, int& beta, int& ss_index);
-    bool reject_link1(std::vector<int>& link_region, int alpha, int beta);
     double acceptance_link0(bool link_or_unlink);
-
+    double regeneration_probabilities();
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     helix_struct* sample_double_helix();
-    void add_bp_to_helix(helix_struct* double_helix, std::vector<int> extension);
     std::vector<std::vector<double>> add_bp_to_helix(helix_struct* double_helix, int side);
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     void update_excluded_volume(std::vector<std::vector<int>>& growth_limits, std::vector<int> helix = {});
+    void update_positions();
+    void neighbouring_linkers();
+    void grow_limits(std::vector<std::vector<int>>& limits, int alpha);
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    void sample_swivel(helix_struct* double_helix, std::vector<double>& u_n, std::vector<double>& v_n, std::vector<double>& origin);
-    void reject_swivel(helix_struct* double_helix, std::vector<double>& new_vector, int u_v_or_o);
-    void swivel();
+    void swivel(bool success);
+    bool reject_v_swivel(helix_struct* double_helix, double angle);
+    bool reject_u_swivel(helix_struct* double_helix, double angle);
+    bool reject_o_translation(helix_struct* double_helix, std::vector<double> &translation);
+    void v_rotate_double_helix(helix_struct* dh, double angle);
+    void u_rotate_double_helix(helix_struct* dh, double angle);
+    void origin_translation(helix_struct* dh, std::vector<double> t);
+    void swivel_growth_limits(helix_struct* dh, std::vector<std::vector<int>>& limits);
+    std::vector<double> centre_of_mass(std::vector<int> structure);
 };
 

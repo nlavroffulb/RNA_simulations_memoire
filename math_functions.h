@@ -19,6 +19,7 @@ double angle_between_vectors(std::vector<double> &vector1, std::vector<double> &
 std::vector<double> normalize(std::vector<double> &unnormalized_vector);
 std::vector<double> multiplication_by_scalar(double constant, std::vector<double> &vector);
 double dist_2_points3d(std::vector<double> &v1, std::vector<double> &v2);
+std::vector<double> rotate_by_angle_about_general_axis(std::vector<double> point, std::vector<double> axis, double theta, std::vector<double> origin);
 
 std::vector<double> cross_product(std::vector<double> &a, std::vector<double> &b);
 
@@ -28,6 +29,7 @@ std::vector<double> sample_unit_perp_vector(std::vector<double> u);
 double factorial(int n);
 double choose(int n, int  k);
 double sum_of_elements(std::vector<double> v);
+double product_of_elements(std::vector < double> &v);
 
 void print_1d_int_vec(std::vector<int> vec);
 void print_1d_doub_vec(std::vector<double> vec);

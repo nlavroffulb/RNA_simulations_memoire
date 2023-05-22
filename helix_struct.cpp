@@ -47,6 +47,13 @@ std::vector<double> helix_struct::get_v() {
 	return v;
 }
 
+void helix_struct::change_v(std::vector<double>v_vec) {
+	v = v_vec;
+}
+void helix_struct::change_u(std::vector<double> u_vec) {
+	u = u_vec;
+}
+
 int helix_struct::get_origin() {
 	return origin;
 }
@@ -137,12 +144,13 @@ bool helix_struct::extendable() {
 }
 
 int helix_struct::get_alpha() {
-	if (origin == monomer_indices[0] || origin == monomer_indices[1]) {
-		return 0;
-	}
-	else {
-		return 1;
-	}
+	//if (origin == monomer_indices[0] || origin == monomer_indices[1]) {
+	//	return 0;
+	//}
+	//else {
+	//	return 1;
+	//}
+	return alpha;
 
 }
 int helix_struct::get_beta() {
@@ -188,12 +196,6 @@ int helix_struct::get_mon_before_origin() {
 
 }
 
-std::vector<double> helix_struct::get_rc_0() {
-	return running_centres[0];
-}
-std::vector<double> helix_struct::get_rc_1() {
-	return running_centres[1];
-}
 
 std::vector<double> helix_struct::get_rc(int index) {
 	return running_centres[index];
