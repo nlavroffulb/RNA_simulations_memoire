@@ -22,8 +22,8 @@ polymer::polymer(int num) {
     search_results = structure_search();
 
     std::vector<int> limit{ 0,N - 1 };
-    accepted_weights = new rosenbluth_growth(limit, weights, energies, 1);
-    proposed_weights = accepted_weights;
+    accepted_weights = new rosenbluth_growth(weights, energies);
+    proposed_weights = new rosenbluth_growth(weights, energies);
 
     regrown_positions = positions;
 }
@@ -419,6 +419,8 @@ void polymer::sample_zip_region(std::vector<int>& region_to_zip, std::vector<int
 }
 void polymer::sample_link_region(std::vector<int>& link, int& alpha, int& beta, int &ss_index)
 {
+    std::cout << "there are " << helix_list.size() << " linked structures" << std::endl;
+
     if (search_results.size() == 0) {
         link = {};
         return;
@@ -433,12 +435,17 @@ void polymer::sample_link_region(std::vector<int>& link, int& alpha, int& beta, 
     alpha = static_cast<int>(rand2(0, 2));
     beta = static_cast<int>(rand2(0, 2));
 
-    std::cout << "sample link region done" << std::endl;
+    //std::cout << "sample link region done" << std::endl;
 
 }
-helix_struct* polymer::sample_double_helix() {
+helix_struct* polymer::sample_double_helix(bool& success) {
     //pick structure to unlink and an origin within the structure to start the 'degrowth'
+    if (helix_list.size() == 0) {
+        success = 0;
+        return nullptr;
+    }
     int s_i{ static_cast<int>(rand2(0,helix_list.size())) };
+    success = true;
     return helix_list[s_i];
 
 }
@@ -462,16 +469,30 @@ bool polymer::overlapping_monomers(std::vector<int> &reaction_region) {
 }
 
 
-void polymer::unlink() {
+void polymer::sample_unlink_region(int &helix_index)
+{
+    std::cout << "there are " << helix_list.size() << " linked structures" << std::endl;
+    std::vector<int> lm;
+    get_linked_monomers(lm);
+    print_1d_int_vec(lm);
+    int s_i{ static_cast<int>(rand2(0,helix_list.size())) };
+    if (helix_list[s_i]->extended()) {
+        helix_index = -1;
+    }else{
+        helix_index = s_i;
+    }
+}
+
+void polymer::unlink(int struct_index) {
     if (helix_list.size() == 0) {
         std::cout << "Cannot perform an unlink move" << std::endl;
     }
     else {
-        neighbouring_linkers();
+        //neighbouring_linkers();
 
         //pick structure to unlink and an origin within the structure to start the 'degrowth'
-        int s_i{ static_cast<int>(rand2(0,helix_list.size())) };
-        std::vector<int> destructure{ helix_list[s_i]->get_monomers() };
+        //int s_i{ static_cast<int>(rand2(0,helix_list.size())) };
+        std::vector<int> destructure{ helix_list[struct_index]->get_monomers() };
 
         int alpha{ static_cast<int>(rand2(0, 2)) };//alpha == 0 is 3' to 5' growth. alpha == 1 is 5' to 3' growth
         int beta{ static_cast<int>(rand2(0, 2)) };
@@ -512,7 +533,7 @@ void polymer::unlink() {
 
         int region_size{ abs(b - a) + 1 };
         bool middle_struct{ true };
-        if (abs(b - d) < abs(b - x)) {
+        if (abs(b - c) < abs(b - x)) {
             //x = c;
             y = b;
             middle_struct = false;
@@ -540,14 +561,15 @@ void polymer::unlink() {
         //// perform degrowth
         // the growth bit. 
         update_excluded_volume(degrowth_limits);
+        
         grow_limits(degrowth_limits, alpha);
 
-        delete helix_list[s_i];
-        helix_list.erase(helix_list.begin() + s_i);
-        search_results.push_back(destructure); // since we are unlinking this region, it can now return to the pool of structures which can be made via a link move.
+        //delete helix_list[s_i];
+        //helix_list.erase(helix_list.begin() + s_i);
+        //search_results.push_back(destructure); // since we are unlinking this region, it can now return to the pool of structures which can be made via a link move.
 
-        //update neighbours
-        neighbouring_linkers();
+        ////update neighbours
+        //neighbouring_linkers();
 
         print_1d_int_vec(destructure);
 
@@ -572,7 +594,7 @@ void polymer::unlink_update(int s_i) {
     //add structure that we unlinked back to the pool of possible regions for a link move
     search_results.push_back(s);
 
-    // update the unlinked monomers. they are not part of a structure anymore.
+    // update the unlinked monomers. they are not part of a structure anymore. structure member variable == 0 if not linked.
     unpack_region(s);
     for (auto i : s) {
         chain[i]->change_structure(0);
@@ -584,7 +606,8 @@ void polymer::unlink_update(int s_i) {
 
     // update positions and neighbours
     update_positions();
-    neighbouring_linkers();
+    //print_monomer_positions();
+    //neighbouring_linkers();
 
     //accepted_weights = proposed_weights;
 
@@ -607,7 +630,7 @@ bool polymer::linked()
 void polymer::link(std::vector<int>& link_region, int alpha, int beta, int ss_index)
 {
     std::cout << "alpha beta " << alpha << " " << beta << std::endl;
-    neighbouring_linkers();//update neighbours
+    //neighbouring_linkers();//update neighbours
     std::vector<int> reaction_region{ link_region };
 
 
@@ -648,8 +671,8 @@ void polymer::link(std::vector<int>& link_region, int alpha, int beta, int ss_in
         y = b;
     }
     std::vector<std::vector<int>> free_growth_limits;
-    //std::cout << "abcd " << a << " " << b << " " << c << " " << d << std::endl;
-    //std::cout << "wxyz " << w << " " << x << " " << y << " " << z << std::endl;
+    std::cout << "abcd " << a << " " << b << " " << c << " " << d << std::endl;
+    std::cout << "wxyz " << w << " " << x << " " << y << " " << z << std::endl;
 
     if (beta == 1) {
         free_growth_limits.push_back({ w,a });
@@ -660,26 +683,26 @@ void polymer::link(std::vector<int>& link_region, int alpha, int beta, int ss_in
     free_growth_limits.push_back({ y,c });
     free_growth_limits.push_back({ d,z });
 
-
+    std::cout << "growth limits" << std::endl;
+    print_2d_int_vec(free_growth_limits);
 
     //start the growth. 
 
     //first update the excluded volume
-    //std::vector<std::vector<double>> excluded_volume;
     update_excluded_volume(free_growth_limits, reaction_region);
 
     // grow helix
     std::vector<std::vector<double>> s_x, s_y;
     std::vector<double> u, v;
     sample_helix_vectors(u, v);
-    helix_struct* dh = new helix_struct(reaction_region,v,alpha,beta);
-    print_1d_int_vec(reaction_region);
+    //helix_struct* dh = new helix_struct(reaction_region,v,alpha,beta);
+    //print_1d_int_vec(reaction_region);
 
     std::vector<double> o_h{ chain[origin]->get_position() };
     std::vector<std::vector<double>> rcentres(2);
     generate(region_size, v, u, o_h, s_x, s_y,rcentres);
-    dh->set_running_x_strand_centre(rcentres[0]);
-    dh->set_running_y_strand_centre(rcentres[1]);
+    //dh->set_running_x_strand_centre(rcentres[0]);
+    //dh->set_running_y_strand_centre(rcentres[1]);
 
     int gamma{ static_cast<int>(pow(-1.0,alpha + beta)) };
     for (int i{ 0 }; i < region_size; i++) {
@@ -695,38 +718,43 @@ void polymer::link(std::vector<int>& link_region, int alpha, int beta, int ss_in
 
     grow_limits(free_growth_limits, alpha);
 
+    //pack_region(reaction_region);
+    proposed_link_helix = new helix_struct(reaction_region, v, rcentres, alpha, beta);
 
     // update the linked neighbours for each monomer
-    helix_list.push_back(dh);
-    unpack_region(reaction_region);
-    for (auto i : reaction_region) {
-        chain[i]->change_structure(helix_list.size() + 1);
-    }
-    search_results.erase(search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
-
-    //search_results.erase(search_results.begin(), search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
-
-
-    ////trying to catch a bug where there's a huge separation
-    //for (auto i : chain) {
-    //    int j = i->get_id();
-    //    if (j + 1 > chain.size() - 1) {
-    //        break;
-    //    }
-    //    std::vector<double> temp1{ chain[j + 1]->get_position() }, temp2{ i->get_position() };
-    //    if (dist_2_points3d(temp1, temp2) > 5) {
-    //        std::cout << "CAUGHT ONE" << std::endl;
-    //        std::cout << "monomer " << i->get_id() << " and " << j + 1 << std::endl;
-    //    }
+    //helix_list.push_back(dh);
+    //unpack_region(reaction_region);
+    //for (auto i : reaction_region) {
+    //    chain[i]->change_structure(helix_list.size() + 1);
     //}
+    //search_results.erase(search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
 
-    neighbouring_linkers();//update neighbours
+    //neighbouring_linkers();//update neighbours
 
 
 }
 
+void polymer::link_update(int ss_index) {
+    //, int a, int b, std::vector<double>&v_vec, std::vector<std::vector<double>> &rcentres
+    std::vector<int> s{ search_results[ss_index] };
 
-bool polymer::reject_link1(std::vector<int>& link_region, int alpha, int beta)
+    helix_list.push_back(proposed_link_helix);
+
+    unpack_region(s);
+    for (auto i : s) {
+        chain[i]->change_structure(helix_list.size() + 1);
+    }
+    search_results.erase(search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
+
+    //neighbouring_linkers();//update neighbours
+
+    //accepted_weights = proposed_weights;
+    update_positions();
+
+}
+
+
+bool polymer::reject_link(std::vector<int>& link_region, int alpha, int beta)
 {
     if (link_region.empty()) {
         return true;
@@ -767,6 +795,9 @@ bool polymer::reject_link1(std::vector<int>& link_region, int alpha, int beta)
     x = chain[b]->left_right_link[1 - alpha];
     y = chain[c]->left_right_link[alpha];
     z = chain[d]->left_right_link[1 - alpha];
+
+    //std::cout << "abcd " << a << " " << b << " " << c << " " << d << std::endl;
+    //std::cout << "wxyz " << w << " " << x << " " << y << " " << z << std::endl;
 
     int region_size{ abs(b - a) + 1 };
     bool middle_struct{ true };
@@ -848,44 +879,109 @@ bool polymer::reject_link1(std::vector<int>& link_region, int alpha, int beta)
         return false;
     }
 }
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-double polymer::acceptance_link0(bool l_or_u) {
+double polymer::link_acceptance(bool link_move) {
+    // link_move == 0 if we are doing an unlink move
+    // link_move == 1 if we are doing a link move
+
     double W_b, W_u, Z_ni_A{ 0.27 }, Z_ni_B{ 0.27 }, Z_ni_AB{ 1 }, G0{ 0.5 }, rho0{ 1 }, U_b, U_u;
     double beta{ 1 };
-    if (helix_list.size() == 0) {
-        std::cout << "no link" << std::endl;
-        return NULL;
-    }
-    else {
-        helix_struct* link{ helix_list[0] };
-        std::vector<int> s{ link->get_monomers() };
-        int hairpin_segments{ abs(s[1] - s[2]) };
-        double delta{ helix_separation() };
-        double hairpin_gen_prob{ ideal_chain_pdf(delta,hairpin_segments) };
 
-        W_u = hairpin_section->get_rosen_weight();
-        U_u = hairpin_section->get_energy();
+    std::vector<double> unzipped_probs(regrowth_lims.size()), zipped_probs(regrowth_lims.size());
 
-        W_b = free_section->subsection_weight({ s[0], s[3] });
-        U_b = free_section->subsection_energy({ s[0], s[3] });
-
-        double z = exp(beta * (U_u - U_b)) * (W_b / W_u) * (exp(-beta*G0) / rho0) * (Z_ni_A * Z_ni_B / Z_ni_AB) * hairpin_gen_prob;
-        if (l_or_u == 1) {
-            if (z < 1) {
-                return z;
-            }
-            else { return 1.0; }
+    std::vector<double> linked_probs(regrowth_lims.size()), unlinked_probs(regrowth_lims.size());
+    for (int i{ 0 }; i < regrowth_lims.size(); i++) {
+        if (link_move) {
+            unlinked_probs[i] = accepted_weights->subsection_probability(regrowth_lims[i]);
+            linked_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
 
         }
-        else if (l_or_u == 0) {
-            if (1 / z < 1) {
-                return 1 / z;
+        else if (!link_move) {
+            linked_probs[i] = accepted_weights->subsection_probability(regrowth_lims[i]);
+            unlinked_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
+
+        }
+    }
+
+    std::vector<int> limit(2);
+    for (int i{ 0 }; i < regrowth_lims.size(); i++) {
+
+        limit = regrowth_lims[i];
+        if (limit[0] != 0 && limit[1] != chain.size() - 1) {
+            std::vector<double> temp1(3), temp2(3);
+            double temp;
+            if (abs(limit[1] - limit[0]) < 2) {
+                //linked_probs[i] *= 1 / 2 * pi;
+                linked_probs[i] = linked_probs[i] / (8 * atan(1));
+
+                unlinked_probs[i] = unlinked_probs[i] / (8 * atan(1));
+
+                //unlinked_probs[i] *= 1 / 2 * pi;
+
             }
             else {
-                return 1.0;
+                if (link_move) {
+                    temp1 = regrown_positions[limit[0]];
+                    temp2 = regrown_positions[limit[1]];
+                    temp1 = vector_subtraction(temp1, temp2);
+                    temp = vector_modulus(temp1);
+
+                    linked_probs[i] *= ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                    temp1 = chain[limit[0]]->get_position();
+                    temp2 = chain[limit[1]]->get_position();
+                    temp1 = vector_subtraction(temp1, temp2);
+                    temp = vector_modulus(temp1);
+
+                    unlinked_probs[i] *= ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                }
+                else if (!link_move) {
+                    temp1 = regrown_positions[limit[0]];
+                    temp2 = regrown_positions[limit[1]];
+                    temp1 = vector_subtraction(temp1, temp2);
+                    temp = vector_modulus(temp1);
+
+                    unlinked_probs[i] *= ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                    temp1 = chain[limit[0]]->get_position();
+                    temp2 = chain[limit[1]]->get_position();
+                    temp1 = vector_subtraction(temp1, temp2);
+                    temp = vector_modulus(temp1);
+
+                    linked_probs[i] *= ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                }
+
             }
+
         }
     }
+    double P_gen_unlinked{ product_of_elements(unlinked_probs) }, P_gen_linked{ product_of_elements(linked_probs) };
+
+    double z;
+    //z = exp(beta * (U_u - U_b)) * (W_b / W_u) * (exp(-beta*G0) / rho0) * (Z_ni_A * Z_ni_B / Z_ni_AB) * hairpin_gen_prob;
+    z = (exp(-beta * G0) / rho0) * (Z_ni_A * Z_ni_B / Z_ni_AB) * P_gen_linked / P_gen_unlinked;
+    if (std::isinf(z)) {
+        std::cout << "z infinity" << std::endl;
+    }
+
+    if (z != z) {
+        std::cout << "z is undefined" << std::endl;
+    }
+    if (!link_move) { z = 1 / z; }
+    std::cout << " link acceptance ratio z " << z << std::endl;
+    if (z >= 1) {
+        return 1;
+    }
+    else {
+        return z;
+    }
+
+
 
 }
 
@@ -902,7 +998,6 @@ double polymer::regeneration_probabilities() {
     // if we have two sections which are between two fixed endpoints then we need to use the probability distribution (yamakawa).
     std::vector<double> extra_prob(3);
     std::vector<int> limit(2);
-
     for (int i{ 0 }; i < regrowth_lims.size(); i++) {
         limit = regrowth_lims[i];
         if (limit[0] != 0 && limit[1] != chain.size() - 1) {
@@ -922,24 +1017,234 @@ double polymer::regeneration_probabilities() {
     return 0; 
 
 }
-void polymer::link_update(int ss_index, int a, int b, std::vector<double>&v_vec, std::vector<std::vector<double>> &rcentres) {
-    std::vector<int> s{ search_results[ss_index] };
+double polymer::zip_acceptance(bool zip_move, int side)
+{
+    // if zip_move == 1 then we are doing a zip move
+    // if zip_move == 0 then we are doing an unzip move
 
-    helix_list.push_back(new helix_struct(s, v_vec, rcentres, a, b));
+    double Z1_Mplus1{ 0.5 }, Z1_M{ 0.5 }, Z2_Mplus1{ 0.5 }, Z2_M{ 0.5 };
+    double dG_M{ 1 }, dG_Mplus1{ 1.1 };
+    double deltadG{ -(dG_Mplus1 - dG_M) };
 
-    unpack_region(s);
-    for (auto i : s) {
-        chain[i]->change_structure(helix_list.size() + 1);
+    if (regrowth_lims.size() > 1 && (regrowth_lims[0][0] > regrowth_lims[1][0])) {
+        std::reverse(regrowth_lims.begin(), regrowth_lims.end());
     }
-    search_results.erase(search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
+    
+    std::vector<std::vector<int>> old_growth_lims(regrowth_lims.size());
+    int kappa;
+    zip_move == 1 ? kappa = -1 : kappa = +1;
+    if (regrowth_lims.size() == 1) {
+        int i1{ regrowth_lims[0][0] }, i2{ regrowth_lims[0][1] };
+        old_growth_lims[0] = { i1 + kappa, i2 - kappa };
+    }
+    else {
+        std::vector<int> temp(2);
+        if (side == 0) {
+            temp[0] = regrowth_lims[0][0];
+            temp[1] = regrowth_lims[0][1] - kappa;
+            old_growth_lims[0] = temp;
+            //old_growth_lims[0][0] = regrowth_lims[0][0];
+            //old_growth_lims[0][1] = regrowth_lims[0][1] - kappa;
 
-    neighbouring_linkers();//update neighbours
+            temp[0] = regrowth_lims[1][0] + kappa;
+            temp[1] = regrowth_lims[1][1];
+            old_growth_lims[1] = temp;
 
-    //accepted_weights = proposed_weights;
-    update_positions();
+            //old_growth_lims[1][0] = regrowth_lims[1][0] + kappa;
+            //old_growth_lims[1][1] = regrowth_lims[1][1];
+        }
+        else if (side == 1) {
+            temp[0] = regrowth_lims[0][0]+kappa;
+            temp[1] = regrowth_lims[0][1];
+            old_growth_lims[0] = temp;
+
+            //old_growth_lims[0][0] = regrowth_lims[0][0] + kappa;
+            //old_growth_lims[0][1] = regrowth_lims[0][1];
+
+            temp[0] = regrowth_lims[1][0];
+            temp[1] = regrowth_lims[1][1] - kappa;
+            old_growth_lims[1] = temp;
+
+            //old_growth_lims[1][0] = regrowth_lims[1][0];
+            //old_growth_lims[1][1] = regrowth_lims[1][1] - kappa;
+
+        }
+    }    
+    std::vector<double> unzipped_probs(regrowth_lims.size()), zipped_probs(regrowth_lims.size());
+
+    // in this block we get the rosenbluth weights that we need for the sections of interest
+    for (int i = 0; i < regrowth_lims.size(); i++)
+    {
+        if (zip_move == 0) {
+            zipped_probs[i] = accepted_weights->subsection_probability(old_growth_lims[i]);
+            unzipped_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
+
+        }
+        else {
+            zipped_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
+            unzipped_probs[i] = accepted_weights->subsection_probability(old_growth_lims[i]);
+
+        }
+
+    }
+
+    // in this block we get the fixed endpoint probability factor if the limit of interest is between
+    // 2 fixed endpoints.
+    std::vector<int> limit(2);
+    for (int i{ 0 }; i < regrowth_lims.size(); i++) {
+        limit = regrowth_lims[i];
+        if (limit[0] != 0 && limit[1] != chain.size() - 1) {
+            std::vector<double> temp1(3), temp2(3);
+            temp1 = chain[limit[0]]->get_position();
+            temp2 = chain[limit[1]]->get_position();
+
+            temp1 = vector_subtraction(temp1, temp2);
+            double temp{ vector_modulus(temp1) };
+
+            if (abs(limit[1] - limit[0]) < 2) {
+                //unzipped_probs[i] *= 1 / 2 * pi;
+                //zipped_probs[i] *= 1 / 2 * pi;
+                unzipped_probs[i] = unzipped_probs[i] / (8 * atan(1));
+
+                zipped_probs[i] = zipped_probs[i] / (8 * atan(1));
+
+            }
+            else {
+
+                if (!zip_move) {
+                    unzipped_probs[i] = unzipped_probs[i] * ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                }
+                else if (zip_move) {
+                    zipped_probs[i] = zipped_probs[i] * ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+                }
+
+            }
+        }
+    }
+    for (int i{ 0 }; i < old_growth_lims.size(); i++) {
+        limit = old_growth_lims[i];
+        if (limit[0] != 0 && limit[1] != chain.size() - 1) {
+            std::vector<double> temp1(3), temp2(3);
+            temp1 = chain[limit[0]]->get_position();
+            temp2 = chain[limit[1]]->get_position();
+
+            temp1 = vector_subtraction(temp1, temp2);
+            //check if this is just helix separation.
+            double temp{ vector_modulus(temp1) };
+
+
+            if (abs(limit[1] - limit[0]) < 2) {
+                if (!zip_move) {
+                    zipped_probs[i] = zipped_probs[i] / (8 * atan(1));
+
+                }
+                else {
+                    unzipped_probs[i] = unzipped_probs[i] / (8 * atan(1));
+                }
+
+
+            }
+            else {
+                if (!zip_move) {
+                    zipped_probs[i] = zipped_probs[i] * ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+
+                }
+                else if (zip_move) {
+                    unzipped_probs[i] = unzipped_probs[i] * ideal_chain_pdf(temp, abs(limit[1] - limit[0]));
+                }
+            }
+
+        }
+    }
+
+    double P_gen_unzipped{product_of_elements(unzipped_probs)}, P_gen_zipped{product_of_elements(zipped_probs)};
+
+    double z;
+
+    //z = exp(-deltadG) * (pow(Z1_Mplus1, 2) / pow(Z1_M, 2)) * (Z2_M / Z2_Mplus1) * (P_gen_unzipped / P_gen_zipped);
+    z = exp(-1.0*deltadG) * (pow(Z1_Mplus1, 2) / pow(Z1_M, 2)) * (Z2_M / Z2_Mplus1) * (P_gen_zipped / P_gen_unzipped);
+    if (std::isinf(z)) {
+        std::cout << "z infinity" << std::endl;
+    }
+    if (!zip_move) { z = 1 / z; }
+    std::cout << "zip acceptance " << z << std::endl;
+    if (z != z) {
+        std::cout << "z is undefined" << std::endl;
+    }
+
+    if (z >= 1) {
+        return 1;
+    }
+    else {
+        return z;
+    }
+}
+
+double polymer::swivel_acceptance()
+{
+    std::vector<double> old_probs(regrowth_lims.size()), new_probs(regrowth_lims.size());
+    for (int i{ 0 }; i < regrowth_lims.size(); i++) {
+        old_probs[i] = accepted_weights->subsection_probability(regrowth_lims[i]);
+        new_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
+    }
+    double old_config_prob{ product_of_elements(old_probs) }, new_config_prob{ product_of_elements(new_probs) };
+
+    // if we have two sections which are between two fixed endpoints then we need to use the probability distribution (yamakawa).
+    std::vector<int> limit(2);
+    std::vector<double> temp1(3), temp2(3), temp(3);
+    double r_e2e;
+    for (int i = 0; i < regrowth_lims.size(); i++)
+    {
+        limit = regrowth_lims[i];
+
+        if (abs(limit[1] - limit[0]) < 2) {
+            //old_config_prob *= 1 / 2 * pi;
+            //new_config_prob *= 1 / 2 * pi;
+
+            old_config_prob = old_config_prob / (8 * atan(1));
+
+            new_config_prob = new_config_prob / (8 * atan(1));
+
+
+        }
+        else {
+            if (limit[0] != 0 && limit[1] != chain.size() - 1)
+            {
+                temp1 = chain[limit[0]]->get_position();
+                temp2 = chain[limit[1]]->get_position();
+                temp = vector_subtraction(temp1, temp2);
+                r_e2e = vector_modulus(temp);
+                old_config_prob *= ideal_chain_pdf(r_e2e, abs(limit[1] - limit[0]));
+
+                temp1 = regrown_positions[limit[0]];
+                temp2 = regrown_positions[limit[1]];
+                temp = vector_subtraction(temp1, temp2);
+                r_e2e = vector_modulus(temp);
+                new_config_prob *= ideal_chain_pdf(r_e2e, abs(limit[1] - limit[0]));
+
+
+            }
+
+        }
+    }
+
+    double z = old_config_prob / new_config_prob;
+    if (std::isinf(z)) {
+        std::cout << "z infinity" << std::endl;
+    }
+
+    std::cout << "swivel acceptance ratio " << z << std::endl;
+    if (z >= 1) {
+        return 1;
+    }
+    else { return z; }
 
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void polymer::structure_extension(std::vector<int>& s, int& index) {
 
@@ -1191,12 +1496,25 @@ void polymer::unzip_growth_linits(std::vector<int>& s, int side, std::vector<std
     growth_limits = limits;
 }
 
-void polymer::sample_zip_move() {
+
+void polymer::sample_zip_move(bool &success, int&s_index) {
+    //neighbouring_linkers();//update neighbours
+
+    //cannot perform zip if none of the linked structures can be extended.
+    update_extensible_structures();
+
+    if (extendable_structures.size() == 0) {
+        success = false;
+        return;
+    }
+
+    int structure_index{ static_cast<int>(rand2(0,extendable_structures.size())) };
+    s_index = structure_index;
 
 }
-void polymer::zip(bool& success) {
+void polymer::zip(bool& success, int &sigma, int &s_index) {
 
-    neighbouring_linkers();//update neighbours
+    //neighbouring_linkers();//update neighbours
 
     //cannot perform zip if none of the linked structures can be extended.
     update_extensible_structures();
@@ -1214,24 +1532,25 @@ void polymer::zip(bool& success) {
     std::vector<int> reaction_region = extend_helix->get_extension();
     //sample side
     int side{ static_cast<int>(rand2(0,2)) };
+    sigma = side;
+    s_index = structure_index;
 
     sample_zip_region(s_z, reaction_region,side);
     print_1d_int_vec(s_z);
 
-    if (s_z.size() == 0) {
+    if (s_z.size() == 0) {//cant zip a double helix if there are none
         success = 0;
         return;
     }
-    if (s_z[0]<0 || s_z[3]>chain.size() - 1) {
+    if (s_z[0]<0 || s_z[3]>chain.size() - 1) { // can't try to zip a region which is outside of the terminal endpoints of the polymer
         std::cout << "invalid zip region" << std::endl;
         success = 0;
         return;
     }
-    if (zip_structure_overlap(s_z, side)) {
+    if (zip_structure_overlap(s_z, side)) { // we don't allow zipping structures which would overlap with other structures (ie a merging of structures).
         success = 0;
         return;
     }
-
     std::vector<std::vector<double>> new_pos(2);
     new_pos = add_bp_to_helix(extend_helix, side);
     print_2d_doub_vec(new_pos);
@@ -1245,9 +1564,6 @@ void polymer::zip(bool& success) {
     std::vector<std::vector<int>> growth_limits;
     zip_growth_limits(s_z, side, growth_limits);
     update_excluded_volume(growth_limits, s_z);
-    std::vector<double> temp(3);
-
-    //////////////// what follows should be in its own function if the zip gets accepted ///////////////////
 
     //have to repeat some of the code from add bp to helix now that the zip has been accepted.
     // zip has been accepted here based on physical constraints but not yet by the acceptance probability.
@@ -1275,11 +1591,14 @@ void polymer::zip(bool& success) {
     }
     std::vector<double> v{ extend_helix->get_v() };
 
+    std::vector<double> temp(3);
     temp = multiplication_by_scalar(pitch, v);
     running_centre = vector_addition(running_centre, temp);
 
-    side == 0 ? extend_helix->set_rc(beta, running_centre) : extend_helix->set_rc(1 - beta, running_centre);
-
+    //side == 0 ? extend_helix->set_rc(beta, running_centre) : extend_helix->set_rc(1 - beta, running_centre);
+    
+    new_running_centre = running_centre;
+    zip_unzip_structure = s_z;
     //********************************************************
 
     // change the positions of the zipped monomers
@@ -1291,19 +1610,16 @@ void polymer::zip(bool& success) {
     //chain[o_y + kappa]->change_position(new_pos[1]);
     excluded_volume.push_back(new_pos[1]);
 
-    extend_helix->extend(s_z);
+    //extend_helix->extend(s_z);
 
-    //std::vector<std::vector<double>> excluded_volume;// will need to make a function which correctly gets excldued volume at the start
-    //// as a function of growth limits.
-
-    grow_limits(growth_limits, 0);
+    grow_limits(growth_limits, 0);// this function updates the Rosenbluth weights 
 
     //update the structure that we zipped. should also remove the one that's already been zipped.
     //helix_list[structure_index]->extend(s_z);
-    unpack_region(s_z);
-    for (auto i : s_z) {
-        chain[i]->change_structure(structure_index + 1);
-    }
+    //unpack_region(s_z);
+    //for (auto i : s_z) {
+    //    chain[i]->change_structure(structure_index + 1);
+    //}
     //trying to catch a bug where there's a huge separation
     for (auto i : chain) {
         int j = i->get_id();
@@ -1313,6 +1629,7 @@ void polymer::zip(bool& success) {
         std::vector<double> temp1{ chain[j + 1]->get_position() }, temp2{ i->get_position() };
         if (dist_2_points3d(temp1, temp2) > 5) {
             std::cout << "caught one" << std::endl;
+            std::cout << "id " << i->get_id() << std::endl;
         }
     }
     std::cout << "sigma " << side << std::endl;
@@ -1324,13 +1641,25 @@ void polymer::zip(bool& success) {
     //neighbouring_linkers();//update neighbours
 
 }
+void polymer::zip_update(int s_index, int side) {
+    int beta{ helix_list[s_index]->get_beta() };
+    side == 0 ? helix_list[s_index]->set_rc(beta, new_running_centre) : helix_list[s_index]->set_rc(1 - beta, new_running_centre);
+    helix_list[s_index]->extend(zip_unzip_structure);
+    update_positions();
 
-void polymer::unzip(bool &success) {
-    neighbouring_linkers();//update neighbours
+    unpack_region(zip_unzip_structure);
+    for (auto i : zip_unzip_structure) {
+        chain[i]->change_structure(s_index + 1);
+    }
+
+}
+void polymer::unzip(bool &success, int &sigma, int &s_index) {
+    //neighbouring_linkers();//update neighbours
 
     update_large_struct_list();
     if (zipped_structures.size() == 0) {
-        std::cout << "unzip move not possible, no regions to unzip" << std::endl;
+        //std::cout << "unzip move not possible, no regions to unzip" << std::endl;
+        success = 0;
         return;
     }
 
@@ -1341,37 +1670,69 @@ void polymer::unzip(bool &success) {
     std::vector<int> unzip_this{ helix_list[structure_index]->get_monomers() };
     std::vector<int> zipped_helix{ unzip_this };
 
+    
     //sample side
     int side{ static_cast<int>(rand2(0,2)) };
     sample_unzip_region(unzip_this, side);
-    std::cout << "unzip went through: region" << std::endl;
+    //std::cout << "unzip went through: region" << std::endl;
     print_1d_int_vec(unzip_this);
     std::vector<std::vector<int>> limits;
     unzip_growth_linits(zipped_helix, side, limits);
-
+    sigma = side;
     update_excluded_volume(limits);
     grow_limits(limits, 0);
 
+    zip_unzip_structure = unzip_this;
+
+    success = 1;
     //this section also needs to be changed once the acceptance probability is properly implemented
     // ie it needs to exist as an independent function which is called iff the move is not rejected 
     // due to the acceptance probability.
-    helix_list[structure_index]->shorten(unzip_this);
-    //change the structure id of the ones that got unzipped
-    if (side == 0) {
-        chain[zipped_helix[0]]->change_structure(0);
-        chain[zipped_helix[3]]->change_structure(0);
-    }
-    else if (side == 1) {
-        chain[zipped_helix[1]]->change_structure(0);
-        chain[zipped_helix[2]]->change_structure(0);
+    //helix_list[structure_index]->shorten(unzip_this);
+    ////change the structure id of the ones that got unzipped
+    //if (side == 0) {
+    //    chain[zipped_helix[0]]->change_structure(0);
+    //    chain[zipped_helix[3]]->change_structure(0);
+    //}
+    //else if (side == 1) {
+    //    chain[zipped_helix[1]]->change_structure(0);
+    //    chain[zipped_helix[2]]->change_structure(0);
 
-    }
+    //}
     //unpack_region(s_z);
     //structure_list[structure_index] = s_z;
 
-    neighbouring_linkers();//update neighbours
+    //neighbouring_linkers();//update neighbours
     //output_for_ovito4("s3");
     //exit(0);
+}
+void polymer::unzip_update(int s_index, int side){
+    helix_list[s_index]->shorten(zip_unzip_structure);
+
+    //update running centre
+    int beta{ helix_list[s_index]->get_beta() };
+    int kappa{ abs((1 - beta) - (1 - side)) };
+    std::vector<double> rc{ helix_list[s_index]->get_rc(kappa) }, v{helix_list[s_index]->get_v()};
+    double gamma{ pow(-1,kappa) };
+    double pitch{ 0.28 };
+    std::vector<double> temp{ multiplication_by_scalar(gamma*pitch,v) };
+    rc = vector_addition(rc, temp);
+    helix_list[s_index]->set_rc(kappa, rc);
+
+    //change the structure id of the ones that got unzipped
+    if (side == 0) {
+        chain[zip_unzip_structure[0]]->change_structure(0);
+        chain[zip_unzip_structure[3]]->change_structure(0);
+    }
+    else if (side == 1) {
+        chain[zip_unzip_structure[1]]->change_structure(0);
+        chain[zip_unzip_structure[2]]->change_structure(0);
+
+    }
+
+
+    update_positions();
+
 }
 
 
@@ -1472,23 +1833,24 @@ void polymer::pack_region(std::vector<int>& reaction_region) {
 
 void polymer::neighbouring_linkers()
 {
+    std::vector<std::vector<double>> np(N);
+    for (auto i{ 0 }; i < N; i++) {
+        np[i] = chain[i]->get_position();
+    }
+    regrown_positions = np;
+    //std::cout << "neighbouring linkers called" << std::endl;
     std::vector<int> s(4);
     int limits;
     if (helix_list.size() > 0) {
         std::vector<int> linked_monomers;
-        for (auto i : helix_list) {
-            s = i->get_monomers();
-            limits = s[1] - s[0];
-            for (int j{ 0 }; j < limits; j++) {
-                linked_monomers.push_back(s[0] + j);
-                linked_monomers.push_back(s[2] + j);
-            }
-        }
+        get_linked_monomers(linked_monomers);
+        //print_1d_int_vec(linked_monomers);
         std::sort(linked_monomers.begin(), linked_monomers.end());
 
         for (int i{ 0 }; i < chain.size(); i++) {
 
             if (i == 0) {
+                
                 chain[i]->left_right_link[1] = linked_monomers.front();
             }
             else if (i == chain.size() - 1) {
@@ -1602,7 +1964,9 @@ void polymer::update_excluded_volume(std::vector<std::vector<int>>& growth_limit
     for (int j{ 0 }; j < indices.size() - 1; j++) {
 
         if (indices[j] != -1) {
-            ev[j] = chain[indices[j]]->get_position();
+            ev[j] = regrown_positions[indices[j]];
+
+            //ev[j] = chain[indices[j]]->get_position();
 
         }
     }
@@ -1612,19 +1976,19 @@ void polymer::update_excluded_volume(std::vector<std::vector<int>>& growth_limit
 
 void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
    
-    if (alpha == 1) {
-        for (auto i : regrowth_lims) {
-            std::sort(i.begin(), i.end());
-        }
-    }
     std::vector<double> W_vals, U_vals;
     int m0, kappa;
     std::vector<int> limit(2);
     for (size_t i = 0; i < limits.size(); i++)
     {
+        
         limit = limits[i];
+        //std::cout << "limit" << std::endl;
+        //print_1d_int_vec(limit);
 
         if (limit[0] == limit[1]) {
+            std::cout << "growth limits were the same monomer" << std::endl;
+
             limits.erase(limits.begin() + i);
             continue;
         }
@@ -1648,7 +2012,10 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
             std::vector<double> o1{ regrown_positions[m0] };
 
             linker = rosenbluth_random_walk(o1, linker.size() - 1, excluded_volume, U_vals, W_vals);
-            //proposed_weights->modify_weights(limit, W_vals);
+            W_vals[0] = accepted_weights->get_Wi(limit[0]);
+            U_vals[0] = accepted_weights->get_Ui(limit[0]);
+            accepted_weights;
+            proposed_weights->modify_weights(limit, W_vals);
             //proposed_weights->modify_energies(limit, U_vals);
 
 
@@ -1665,10 +2032,15 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
             //std::vector<double> p1{ chain[limit[0]]->get_position() }, p2{ chain[limit[1]]->get_position() };
             std::vector<double> p1{ regrown_positions[limit[0]] }, p2{ regrown_positions[limit[1]] };
 
-            //linker = grow_chain(chain[limit[0]]->get_position(), chain[limit[1]]->get_position(), linker.size() - 1, excluded_volume);
-            linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, excluded_volume, U_vals,W_vals);
-            //proposed_weights->modify_weights(limit, W_vals);
-            //proposed_weights->modify_energies(limit, U_vals);
+            //linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, excluded_volume, U_vals,W_vals);
+            linker = rosenbluth_grow_chain(p1, p2, linker.size()-1, excluded_volume, U_vals, W_vals);
+            W_vals[0] = accepted_weights->get_Wi(limit[0]);
+            U_vals[0] = accepted_weights->get_Ui(limit[0]);
+            W_vals.back() = accepted_weights->get_Wi(limit[1]);
+            U_vals.back() = accepted_weights->get_Ui(limit[1]);
+
+            accepted_weights;
+            proposed_weights->modify_weights(limit, W_vals);
 
             for (int i{ 0 }; i < linker.size(); i++) {
                 //chain[limit[0] + kappa * i]->change_position(linker[i]);
@@ -1679,6 +2051,12 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
         //print_monomer_positions();
     }
     regrowth_lims = limits;
+    if (alpha == 1) {
+        for (auto i : regrowth_lims) {
+            std::sort(i.begin(), i.end());
+        }
+    }
+
 
 }
 
@@ -1690,6 +2068,8 @@ void polymer::update_positions() {
     }
     //std::vector<std::vector<double>> pos(N);
     //regrown_positions = pos;
+    std::vector<double> ws{ proposed_weights->get_weights() }, us{proposed_weights->get_energies()};
+    accepted_weights->set_energies(us), accepted_weights->set_weights(ws);
     return;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1708,9 +2088,7 @@ void polymer::swivel(bool success) {
     double rn{ rand2(0,1) };
 
     double tau{0.5};
-    rn = 0.7;
-    // these functions should check physical constraints, calculate acceptance values which will later be 
-    // changed if the move is accepted.
+    //rn = 0.5;
     if (rn < 0.33333) { // v swivel
 
         // sample an angle
@@ -1718,35 +2096,50 @@ void polymer::swivel(bool success) {
         int kappa{ static_cast<int>(rand2(0,2)) };
         theta = theta * pow(-1, kappa);
 
-        if (reject_v_swivel(double_helix, theta)) {
-            std::cout << "v swivel rejected" << std::endl;
+        if (reject_spin(double_helix, theta)) {
+            //std::cout << "v swivel rejected" << std::endl;
             success = 0;
         }
         else {
-            std::cout << " v swivel success" << std::endl;
-            std::cout << "angle " << theta * 180 / (4 * atan(1)) << std::endl;
-            v_rotate_double_helix(double_helix, theta);
+            //std::cout << " v swivel success" << std::endl;
+
+            std::vector<double> rotation(3);
+            spin(double_helix, theta, rotation);
 
             // calculate acceptance rule. WIP.
 
-            // if accepted, this is the update. we have to change one of the running centres and v in our 
-            // helix struct object . and we have to change the position.
+            //UPDATES
 
-            //following block is all to update the running centre and v.
-            int beta{ double_helix->get_beta() };
-            std::vector<double> running_centre(3);
-            beta == 0 ? running_centre = double_helix->get_rc(beta) : running_centre = double_helix->get_rc(1 - beta);
-            std::vector<double> old_v{ double_helix->get_v() };
-            std::vector<double> new_v{ rotate_helix(old_v, u, theta) };
-            double_helix->change_v(new_v);
-            std::vector<int> s{ double_helix->get_monomers() };
-            int n{ abs(s[1] - s[0])};
-            double pitch{ 0.28 };
-            std::vector<double> temp(3);
-            temp = multiplication_by_scalar(n * pitch, new_v);
-            running_centre = vector_addition(running_centre, temp);
-            beta == 0 ? double_helix->set_rc(1 - beta, running_centre) : double_helix->set_rc(beta, running_centre);
+            //update running centres
+            std::vector<double> rc1{ double_helix->get_rc(0) }, rc2{ double_helix->get_rc(1) };
+            std::vector<double> com{ centre_of_mass(double_helix->get_monomers()) };
+            rc1 = rotate_by_angle_about_general_axis(rc1, rotation, theta, com);
+            rc2 = rotate_by_angle_about_general_axis(rc2, rotation, theta, com);
+            double_helix->set_rc(0, rc1);
+            double_helix->set_rc(1, rc2);
 
+            //std::cout << "running centres" << std::endl;
+            //print_1d_doub_vec(rc1);
+            //print_1d_doub_vec(rc2);
+
+            //update v, helix vector
+            std::vector<double> v_new{ vector_subtraction(rc2,rc1) };
+            normalize(v_new);
+            double_helix->change_v(v_new);
+
+            //std::cout << "v theory 1 " << std::endl;
+            //print_1d_doub_vec(v_new);
+            //std::cout << "further tests" << std::endl;
+            //int beta{ double_helix->get_beta() }, alpha{ double_helix->get_alpha() };
+            //std::cout << "alpha beta " << alpha << " " << beta << std::endl;
+            //std::vector<int> s{ double_helix->get_monomers() };
+            //std::vector<double> temp(3);
+            //for (auto i : s) {
+            //    temp = chain[i]->get_position();
+            //    print_1d_doub_vec(temp);
+            //}
+            
+            //update positions
             update_positions();
 
             success = 1;
@@ -1761,7 +2154,7 @@ void polymer::swivel(bool success) {
         int kappa{ static_cast<int>(rand2(0,2)) };
         theta = theta * pow(-1, kappa);
 
-        if (reject_u_swivel(double_helix, theta)) {
+        if (reject_corkscrew(double_helix, theta)) {
             std::cout << "u swivel rejected" << std::endl;
 
             success = 0;
@@ -1770,7 +2163,7 @@ void polymer::swivel(bool success) {
             std::cout << " u swivel success" << std::endl;
             std::cout << "angle " << theta * 180 / (4 * atan(1)) << std::endl;
 
-            u_rotate_double_helix(double_helix, theta);
+            corkscrew(double_helix, theta);
 
             // calculate acceptance rule. WIP.
 
@@ -1789,7 +2182,7 @@ void polymer::swivel(bool success) {
         std::vector<double> translation(3);
         sample_jump_direction(translation, translation_distance);
 
-        if (reject_o_translation(double_helix, translation)) {
+        if (reject_translate(double_helix, translation)) {
             std::cout << "o translation rejected" << std::endl;
 
             success = 0;
@@ -1797,11 +2190,16 @@ void polymer::swivel(bool success) {
         else {
             std::cout << "o translation success" << std::endl;
 
-            origin_translation(double_helix, translation);
+            translate(double_helix, translation);
 
             // calculate acceptance rule
 
-            // if accepted, need to update positions, nothing else.
+            // if accepted, need to update positions, including the position of the running centre
+            std::vector<double> rc1{ double_helix->get_rc(0) }, rc2{ double_helix->get_rc(1) };
+            rc1 = vector_addition(rc1, translation);
+            rc2 = vector_addition(rc2, translation);
+            double_helix->set_rc(0, rc1);
+            double_helix->set_rc(1, rc2);
             update_positions();
             success = 1;
         }
@@ -1809,7 +2207,7 @@ void polymer::swivel(bool success) {
 
 }
 
-bool polymer::reject_v_swivel(helix_struct* double_helix, double angle) {
+bool polymer::reject_spin(helix_struct* double_helix, double angle) {
     std::vector<int> s{ double_helix->get_monomers() };
     std::vector<double> com{ centre_of_mass(s) };
 
@@ -1898,7 +2296,7 @@ bool polymer::reject_v_swivel(helix_struct* double_helix, double angle) {
 
 }
 
-bool polymer::reject_u_swivel(helix_struct* dh, double angle) {
+bool polymer::reject_corkscrew(helix_struct* dh, double angle) {
 
     std::vector<int> s{ dh->get_monomers() };
     std::vector<double> v{ dh->get_v() };
@@ -1985,56 +2383,58 @@ bool polymer::reject_u_swivel(helix_struct* dh, double angle) {
 
 }
 
-void polymer::v_rotate_double_helix(helix_struct* dh, double angle) {
+void polymer::spin(helix_struct* dh, double angle, std::vector<double>& rotation_axis) {
     //helix_struct* dh{ sample_double_helix() };
     std::vector<int> s{ dh->get_monomers() };
 
     std::vector<double> com{ centre_of_mass(s) };
     
-
     int beta{ dh->get_beta() }, alpha{ dh->get_alpha() };
-
-    std::vector<double> running_centre(3);
-
-    beta == 0 ? running_centre = dh->get_rc(beta) : running_centre = dh->get_rc(1 - beta);
-    int origin{ s[3 * alpha + (pow(-1,alpha) * beta)] };
-    std::reverse(s.begin(), s.end());
-
-    int origin_link{ s[3 * alpha + (pow(-1,alpha) * beta)] };
-    std::reverse(s.begin(), s.end());
-
-    std::vector<double> r_ox(3);
-    //std::vector<double> r_oy(3);
-    r_ox = chain[origin]->get_position();
-    //r_oy = chain[origin_link]->get_position();
-
-    std::vector<double> u(3);
-    u = vector_subtraction(r_ox, running_centre);// our rotation axis
-    //normalize(u);
-    //w = vector_subtraction(r_oy, running_centre);
-
-    //double theta{ 30 * atan(1) * 4 / 180 };//30 degree rotation
-    double theta{ angle };
+    std::vector<double> v_p{ dh->get_v() };
+    std::vector<double> rot_axis{ sample_unit_perp_vector(v_p) };
+    rotation_axis = rot_axis;
 
     unpack_region(s);
     std::vector<std::vector<double>> rotated_positions(s.size());
     std::vector<double> temp(3);
     for (int i{ 0 }; i < s.size();i++) {
         temp = chain[s[i]]->get_position();
-        rotated_positions[i] = rotate_by_angle_about_general_axis(temp, u, theta, com);
-        //rotated_positions[i] = vector_addition(com, rotated_positions[i]);
-        //chain[s[i]]->change_position(rotated_positions[i]);
+        rotated_positions[i] = rotate_by_angle_about_general_axis(temp, rot_axis, angle, com);
         regrown_positions[s[i]] = rotated_positions[i];
-
     }
 
     // should test that with our calculated v we do indeed generate the desired helix.
-    //std::vector<std::vector<double>> s_x, s_y;
-    //generate(s.size() / 2, new_v, u, r_ox, s_x, s_y);
+    //std::cout << "new v vector calculated by rotating running centres and taking their vector difference" << std::endl;
+    std::vector<double> rc1{ dh->get_rc(0) }, rc2{ dh->get_rc(1) };
+    rc1 = rotate_by_angle_about_general_axis(rc1, rot_axis, angle, com);
+    rc2 = rotate_by_angle_about_general_axis(rc2, rot_axis, angle, com);
+    pack_region(s);
+    std::vector<double> temp1(1), temp2(3);
+    if (beta == 0) {
+        temp1 = regrown_positions[s[0]];
+        temp2 = regrown_positions[s[3]];
+
+        temp1 = regrown_positions[s[1]];
+        temp2 = regrown_positions[s[2]];
+
+    }
+    else if (beta == 1) {
+        temp1 = regrown_positions[s[0]];
+        temp2 = regrown_positions[s[3]];
+
+        temp1 = regrown_positions[s[1]];
+        temp2 = regrown_positions[s[2]];
+
+    }
+    //std::cout << "v theory 0" << std::endl;
+    std::vector<double> v_theory{ vector_subtraction(rc1,rc2) };
+    normalize(v_theory);
+    //print_1d_doub_vec(v_theory);
 
 
     std::vector<std::vector<int>> growth_limits;
     swivel_growth_limits(dh, growth_limits);
+    update_excluded_volume(growth_limits);
 
     grow_limits(growth_limits, alpha);
 
@@ -2050,12 +2450,50 @@ std::vector<double> polymer::centre_of_mass(std::vector<int> s) {
     }
     int k{ static_cast<int>(s.size()) };
     std::for_each(r_com.begin(), r_com.end(), [k](double& c) { c /= k; });
-    std::cout << "centre of mass vector " << std::endl;
-    print_1d_doub_vec(r_com);
+    //std::cout << "centre of mass vector " << std::endl;
+    //print_1d_doub_vec(r_com);
     return r_com;
 }
 
-void polymer::u_rotate_double_helix(helix_struct* dh, double angle) {
+void polymer::corkscrew_update(helix_struct* dh)
+{
+    update_positions();
+
+
+}
+
+void polymer::spin_update(helix_struct* dh, std::vector<double>& rot_axis, double angle)
+{
+    std::vector<double> rc1{ dh->get_rc(0) }, rc2{ dh->get_rc(1) };
+    std::vector<double> com{ centre_of_mass(dh->get_monomers()) };
+    rc1 = rotate_by_angle_about_general_axis(rc1, rot_axis, angle, com);
+    rc2 = rotate_by_angle_about_general_axis(rc2, rot_axis, angle, com);
+    dh->set_rc(0, rc1);
+    dh->set_rc(1, rc2);
+
+    //update v, helix vector
+    std::vector<double> v_new{ vector_subtraction(rc2,rc1) };
+    normalize(v_new);
+    dh->change_v(v_new);
+
+    //update positions
+    update_positions();
+
+}
+
+void polymer::translate_update(helix_struct* dh, std::vector<double>& translation)
+{
+    // if accepted, need to update positions, including the position of the running centre
+    std::vector<double> rc1{ dh->get_rc(0) }, rc2{ dh->get_rc(1) };
+    rc1 = vector_addition(rc1, translation);
+    rc2 = vector_addition(rc2, translation);
+    dh->set_rc(0, rc1);
+    dh->set_rc(1, rc2);
+    update_positions();
+
+}
+
+void polymer::corkscrew(helix_struct* dh, double angle) {
 
     std::vector<int> s{ dh->get_monomers() };
     std::vector<double> v{ dh->get_v() };
@@ -2084,8 +2522,9 @@ void polymer::u_rotate_double_helix(helix_struct* dh, double angle) {
     std::vector<double> temp{ multiplication_by_scalar(pitch, v) };
 
     std::vector<double> p1{ chain[m1]->get_position() }, p2{ chain[m2]->get_position() };
+
     p1 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
-    p2 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
+    p2 = rotate_by_angle_about_general_axis(p2, v, angle, running_centre);
 
     regrown_positions[m1] = p1, regrown_positions[m2] = p2;
     //chain[m1]->change_position(p1), chain[m2]->change_position(p2);
@@ -2100,7 +2539,7 @@ void polymer::u_rotate_double_helix(helix_struct* dh, double angle) {
         p2 = chain[m2]->get_position();
 
         p1 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
-        p2 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
+        p2 = rotate_by_angle_about_general_axis(p2, v, angle, running_centre);
 
         regrown_positions[m1] = p1, regrown_positions[m2] = p2;
         //chain[m1]->change_position(p1), chain[m2]->change_position(p2);
@@ -2110,12 +2549,13 @@ void polymer::u_rotate_double_helix(helix_struct* dh, double angle) {
 
     std::vector<std::vector<int>> growth_limits;
     swivel_growth_limits(dh, growth_limits);
+    update_excluded_volume(growth_limits);
 
     grow_limits(growth_limits, alpha);
 
 }
 
-bool polymer::reject_o_translation(helix_struct* dh, std::vector<double>& translation) {
+bool polymer::reject_translate(helix_struct* dh, std::vector<double>& translation) {
     std::vector<int> s{ dh->get_monomers() };
     int beta{ dh->get_beta() }, alpha{ dh->get_alpha() };
 
@@ -2189,7 +2629,7 @@ bool polymer::reject_o_translation(helix_struct* dh, std::vector<double>& transl
     
 }
 
-void polymer::origin_translation(helix_struct* dh, std::vector<double> t) {
+void polymer::translate(helix_struct* dh, std::vector<double> t) {
     std::vector<int> s{ dh->get_monomers() };
     int alpha{ dh->get_alpha() };
     unpack_region(s);
@@ -2201,7 +2641,7 @@ void polymer::origin_translation(helix_struct* dh, std::vector<double> t) {
     }
     std::vector<std::vector<int>> growth_limits;
     swivel_growth_limits(dh, growth_limits);
-
+    update_excluded_volume(growth_limits);
     grow_limits(growth_limits, alpha);
 
 

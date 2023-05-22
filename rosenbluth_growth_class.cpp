@@ -20,11 +20,11 @@ rosenbluth_growth::rosenbluth_growth(double prob, double weight, double U_R, boo
 	random_walk = rw;
 	U = U_R;
 }
-rosenbluth_growth::rosenbluth_growth(std::vector<int>& limits, std::vector<double>& weight_vals, std::vector<double>& energy_vals, bool rw) {
-	monomer_limits = limits;
+rosenbluth_growth::rosenbluth_growth(std::vector<double>& weight_vals, std::vector<double>& energy_vals) {
+	//monomer_limits = limits;
 	weights = weight_vals;
 	energies = energy_vals;
-	random_walk = rw;
+	//random_walk = rw;
 	l = weight_vals.size();
 }
 rosenbluth_growth::~rosenbluth_growth() {
@@ -59,6 +59,37 @@ double rosenbluth_growth::get_energy()
 	else {
 		return U;
 	}
+}
+
+double rosenbluth_growth::get_Ui(int index)
+{
+	return energies[index];
+}
+
+double rosenbluth_growth::get_Wi(int index)
+{
+	return weights[index];
+}
+
+std::vector<double> rosenbluth_growth::get_energies()
+{
+	return energies;
+}
+
+void rosenbluth_growth::set_energies(std::vector<double> energy_vals)
+{
+	energies = energy_vals;
+	return;
+}
+
+std::vector<double> rosenbluth_growth::get_weights()
+{
+	return weights;
+}
+
+void rosenbluth_growth::set_weights(std::vector<double> weight_vals)
+{
+	weights = weight_vals;
 }
 
 
@@ -145,6 +176,11 @@ void rosenbluth_growth::modify_energies(std::vector<int> limits, std::vector<dou
 
 }
 
+//rosenbluth_growth& rosenbluth_growth::operator=(const rosenbluth_growth& rhs)
+//{
+//	// TODO: insert return statement here
+//}
+
 double rosenbluth_growth::subsection_probability(std::vector<int> &limit) {
 	int l{ abs(limit[1] - limit[0]) + 1 };
 	double prod{ 1 };
@@ -156,7 +192,9 @@ double rosenbluth_growth::subsection_probability(std::vector<int> &limit) {
 	for (int i{ 0 }; i < l; i++) {
 		prod*=exp(-energies[limit[0] + i]) / weights[limit[0] + i];
 	}
-	std::reverse(limit.begin(),limit.end());
+	if (limit[1] < limit[0]) {
+		std::reverse(limit.begin(), limit.end());
+	}
 	return prod;
 }
 //*****************************************************************************************************************//
@@ -404,9 +442,11 @@ std::vector<std::vector<double>> rosenbluth_grow_chain(std::vector<double>& star
 	std::vector<double> old_position{ starting_end };
 	positions[0] = starting_end;
 	int i_segments;
-	std::vector<double> weights(l - 1);
+	std::vector<double> weights(l + 1);
+	weights[0] = 1;
 	double normal_weight;
-	std::vector<double> energies(l - 1);
+	std::vector<double> energies(l + 1);
+	energies[0] = 0;
 
 	//i is the monomer that is being grown. if you have 4 segments in total for example then you need
 	//to add 3 monomers in addition to the endpoints so i=1,2,3. Note that including the endpoints we have
@@ -421,8 +461,8 @@ std::vector<std::vector<double>> rosenbluth_grow_chain(std::vector<double>& star
 			//if(i!=1)
 			if (i == 1) {
 				trial_position = rejection_sample(old_position, ending_end, i_segments);
-				energies[0] = u_r(trial_position, excluded_volumes);
-				weights[0] = trials * exp(-energies[0]);
+				energies[1] = u_r(trial_position, excluded_volumes);
+				weights[1] = trials * exp(-energies[0]);
 				excluded_volumes.push_back(trial_position);
 				generated_position = trial_position;
 			}
@@ -431,7 +471,7 @@ std::vector<std::vector<double>> rosenbluth_grow_chain(std::vector<double>& star
 					trial_position = rejection_sample(old_position, ending_end, i_segments);
 					trial_positions[j] = trial_position;
 				}
-				generated_position = select_trial(trial_positions, excluded_volumes, weights[i - 1], energies[i - 1]);
+				generated_position = select_trial(trial_positions, excluded_volumes, weights[i], energies[i]);
 				excluded_volumes.push_back(generated_position);
 			}
 			old_position = generated_position;
@@ -445,13 +485,15 @@ std::vector<std::vector<double>> rosenbluth_grow_chain(std::vector<double>& star
 				trial_position = crankshaft_insertion(positions[l - 2], ending_end);
 				trial_positions[k] = trial_position;
 			}
-			generated_position = select_trial(trial_positions, positions, weights.back(), energies.back());
+			generated_position = select_trial(trial_positions, positions, weights[l-1], energies[l-1]);
 			excluded_volumes.push_back(generated_position);
 
 			positions[l - 1] = generated_position;
 
 		}
 	}
+	weights.back() = 1;
+	energies.back() = 0;
 	positions[l] = ending_end;
 	energy_vals = energies;
 	weight_vals = weights;
@@ -508,9 +550,9 @@ std::vector<std::vector<double>> rosenbluth_random_walk(std::vector<double>& sta
 	std::vector<double> weights(monomers + 1);
 	std::vector<double> energies(monomers + 1);
 
-	energies[0] = u_r(starting_end, excluded_volumes);
-	weights[0] = trials * exp(-energies[0]);
-
+	energies[0] = 1;
+	weights[0] = 1;
+	excluded_volumes.push_back(starting_end);
 
 
 	//int trials{ 100 };

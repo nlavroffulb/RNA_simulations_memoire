@@ -31,6 +31,24 @@
 
 // global constants header file.
 // 
+// acceptance rate is often nan. need to fix. 
+// 
+// do we always reject links if there are no structures left to try?
+// 
+// are we protected against structures which contain one of the terminal endpoints? need to check for all moves. 
+// 
+// unlink growth limits. sometimes we have growth limits that connect e.g [38,16] & [41,38]. should just be one growth limit.
+// still need to include the extra probabilities which arise for each acceptance rule for example
+// the probability of picking a zipped structure. 
+// 
+// structure id needs to be cleaned up i think. 
+// 
+// when writing acceptance rules, will be useful to use growth limits functions? 
+// 
+// when unlinking, is there any point in sampling alpha and beta?? the number of growth limits will be the same in either case.
+// 
+// limiting case for zip where we zip the two tail ends of the chain. am i protected against that?
+// 
 //  keep doing this thing for alpha  =  1 case where we reverse the order of the vector... is this necessary? when we do constraints
 // we could just consider that w,x,y,z go from 3' to 5'. don't need to reverse it. remove the alpha dependency from w,x,y,z. then 
 // there would be no need to reverse them.
@@ -78,203 +96,181 @@ int main()
     //polymer p0(50);
 
 
-    //std::cout << partition_ni_unlinked(3) << std::endl;
-
-    //std::vector<double> u{ 1,0,0 }, v{ 0,1,0 }, o{ 0,0,0 };
-    //sample_helix_vectors(u, v);
-    //int n{ 10 };
-    //std::vector<std::vector<double>> s_x0(n), s_y0(n), s_x(n), s_y(n);
-
-    //generate(n, v, u, o, s_x0, s_y0);
-    //std::cout << std::endl;
-    //print_2d_doub_vec(s_x0);
-    //print_2d_doub_vec(s_y0);
-    //std::cout << dist_2_points3d(s_y0[0], s_y0[1])<<std::endl;
-    //std::cout << consecutive_mon_sep() << std::endl;
-    //std::cout << max_ring_sep() << std::endl;
-    //std::cout << vector_modulus(v) << std::endl;
-
-    //std::cout << "reverse generate " << std::endl;
-    //reverse_generate(n, v, u, s_x0.back(), s_y0.front(), s_x, s_y);
-    //std::cout << std::endl;
-    //print_2d_doub_vec(s_x);
-    //print_2d_doub_vec(s_y);
-
-
-    ////METROPOLIS HASTINGS
-    //int NMC{ 1000 };
-
-    //int i{ 0 };
-    //double u1, u2;
-    //double link_acc{0.5}, unlink_acc{0.5};
-    //int link_counts{ 0 }, unlink_counts{ 0 };
-    //p0.link();
-    //while (i < NMC) {
-    //    u1 = rand2(0, 1);
-    //    u2 = rand2(0, 1);
-
-    //    //LINK BRANCH
-    //    if (u1 <= 0.5) {
-    //        if (p0.linked()) { // if the system is already in the linked state we cannot re apply a link.
-    //            link_counts++;
-    //            i++;
-    //            continue;
-    //        }
-    //        else {
-    //            int alpha, beta;
-    //            std::vector<int> s;
-    //            p0.sample_link_region(s, alpha, beta);
-    //            if (!p0.reject_link1(s, alpha, beta) && u2 <= link_acc) {
-    //                p0.link1(s, alpha, beta);
-    //                link_counts++;
-    //                std::cout << "link sucess" << std::endl;
-
-    //                //re calculate acceptance rules
-    //                link_acc = p0.acceptance_link0(1);
-    //            }
-    //            else {
-    //                unlink_counts++;
-    //            }
-    //        }            
-    //    }
-
-    //    //UNLINK BRANCH
-    //    else {//u1 > 0.5 and less than 1.
-    //        if (!p0.linked()) {// if the system is already in the unlinked state we cannot re apply an unlink move.
-    //            unlink_counts++;
-    //            i++;
-    //            continue;
-    //        }
-    //        else {
-    //            if (u2 <= unlink_acc) {
-    //                p0.unlink();// attempt an unlink move. it is never rejected but we still check.
-    //                unlink_counts++;
-    //                std::cout << "unlink sucess" << std::endl;
-
-    //                //recalculate acceptance probabilities
-    //                unlink_acc = p0.acceptance_link0(0);
-    //            }
-    //            else {
-    //                link_counts++;
-    //            }
-    //        }
-    //    }
-    //    i++;
-    //}
-    //std::cout << "Unlink state: " << unlink_counts << std::endl;
-    //std::cout << "Link state: " << link_counts << std::endl;
     
-    double time{ 0.0 };
-    int trials{ 10 };
-    int alpha, beta, s_index;
-    std::vector<int> s;
-    int l{ 0 };
-    for (int i{ 0 }; i < trials; i++) {
-        auto start = std::chrono::high_resolution_clock::now();
-        int c{ 0 };
-        bool success{ 0 };
-        std::cout << i << std::endl;
-        polymer p0(50);
 
-        std::cout << "1st link move " << std::endl;
-        p0.sample_link_region(s, alpha, beta,s_index);
-        if (!p0.reject_link1(s, alpha, beta)) {
-            p0.link(s, alpha, beta,s_index);
-            std::cout << "SUCCESS" << std::endl;
-            p0.update_positions();
+    polymer p0(70);
+    double u1, u2, u3;
+    int NMC{ 200 },i{0};
+
+    while (i<NMC){
+        p0.neighbouring_linkers();
+        //std::cout << "Round " << i << std::endl;
+        u1 = rand2(0, 1);// select link/unlink, zip/unzip or swivel branches
+        u2 = rand2(0, 1);// select forward or backwards move
+        u3 = rand2(0, 1);// reject based on acceptance probability.
+        //u1 = rand2(0, 1)*0.66;;
+        //u2 = 0.5;
+        bool success;
+
+        std::string filename{ "step" + std::to_string(i) };
+        p0.output_for_ovito4(filename);
+
+        if (u1 < 0.3333)//link unlink branch
+        {
+            int alpha, beta, struct_index;
+            std::vector<int> s;
+            if (u2 <= 0.5) {
+                //link subbranch
+                std::cout << "link branch" << std::endl;
+
+                p0.sample_link_region(s, alpha, beta, struct_index);
+                if (!p0.reject_link(s, alpha, beta)) {//physical constraints
+                    //p0.print_monomer_positions();
+                    p0.link(s, alpha, beta, struct_index);
+
+                    if (u3 < p0.link_acceptance(1)) {// acceptance probability
+                        print_1d_int_vec(s);
+                        std::cout << "LINK ACCEPTED" << std::endl;
+                        p0.link_update(struct_index);
+
+                        print_1d_int_vec(s);
+                    }
+                }
+
+
+            }
+            else {
+                //unlink subbranch
+                std::cout << "unlink branch" << std::endl;
+
+                if (!p0.linked()) {// if there are no links then we cannot unlink.
+                    i++;
+                    continue;
+                }
+                int s_index;
+                p0.sample_unlink_region(s_index);
+                if (s_index == -1) {// we sampled a zipped structure. we cannot unlink zipped structures.
+                    i++;
+                    continue;
+                }
+                else {
+                    p0.unlink(s_index);
+                    if (u3 < p0.link_acceptance(0)) {
+                        p0.unlink_update(s_index);
+                        std::cout << "UNLINK ACCEPTED" << std::endl;
+
+                    }
+                }
+
+
+            }
 
         }
-        else {
-            std::cout << "link rejected" << std::endl;
+        else if (u1 < 0.6666) { // zip unzip branch
+            int side, s_index;
+            if (u2 < 0.5) {//zip branch
+                std::cout << "zip branch" << std::endl;
+                if (p0.linked()) {
+                    p0.zip(success, side, s_index);
+                }
+                else {
+                    p0.zip(success, side, s_index);
+
+                }
+                if (success == 1) { // success is dependent on whether there are any suitable double helixes which already exist and can be extended (ie zipped).
+                    if (u3 < p0.zip_acceptance(1,side)) {
+                        p0.zip_update(s_index,side);
+                        std::cout << "ZIP ACCEPTED" << std::endl;
+
+                    }
+                }
+            }
+            else {//unzip branch
+                std::cout << "unzip branch" << std::endl;
+
+                p0.unzip(success, side,s_index);
+                if (success == 1) {
+                    if (u3 < p0.zip_acceptance(0, side)) {
+                        p0.unzip_update(s_index,side);
+                        std::cout << "UNZIP ACCEPTED" << std::endl;
+
+                    }
+                }
+            }
+
         }
-        p0.output_for_ovito4("step1");
+        else { // swivel branch
+            helix_struct* dh{ p0.sample_double_helix(success) };
+            if (success == 0) {// there were no existing double helix structures.
+                i++;
+                continue;
+            }
+            double tau{ 0.5 };
+            double theta{ rand2(0,tau * atan(1) * 2) };
+            int kappa{ static_cast<int>(rand2(0,2)) };
+            theta = theta * pow(-1, kappa);
 
-        std::cout << "2nd link move " << std::endl;
-        p0.sample_link_region(s, alpha, beta, s_index);
-        if (!p0.reject_link1(s, alpha, beta)) {
-            p0.link(s, alpha, beta, s_index);
-            std::cout << "SUCCESS" << std::endl;
+            if (u2 < 0.3333) {// spin branch. corresponds to changing the v vector of the helix
+                //std::cout << "v swivel branch" << std::endl;
 
-            p0.update_positions();
+                if (p0.reject_spin(dh, theta)) {
+                    //std::cout << "v swivel rejected" << std::endl;
+                    continue;
+                }
+                else {
+                    std::vector<double> rotation(3);
+                    p0.spin(dh, theta, rotation);
 
+                    if (u3 < p0.swivel_acceptance()) {
+                        p0.spin_update(dh,rotation,theta);
+                        std::cout << "V SWIVEL ACCEPTED" << std::endl;
+
+                    }
+                }
+
+            }
+            else if (u2 < 0.6666) {// corkscrew branch. corresponds to changing the u vector of the helix
+                //std::cout << "u swivel branch" << std::endl;
+
+                if (p0.reject_corkscrew(dh, theta)) {
+                    //std::cout << "u swivel rejected" << std::endl;
+                    continue;
+                }
+                else {
+                    p0.corkscrew(dh, theta);
+
+                    if (u3 < p0.swivel_acceptance()) {
+                        p0.corkscrew_update(dh);
+                        std::cout << "U SWIVEL ACCEPTED" << std::endl;
+
+                    }
+                }
+            }
+            else {// translation branch. displace the helix.
+                //std::cout << "origin translation branch" << std::endl;
+
+                double translation_distance{ 0.5 };
+                std::vector<double> translation(3);
+                sample_jump_direction(translation, translation_distance);
+
+                if (p0.reject_translate(dh, translation)) {
+                    //std::cout << "origin translation rejected" << std::endl;
+                    continue;
+                }
+                else {
+                    p0.translate(dh, translation);
+
+                    if (u3 < p0.swivel_acceptance()) {
+                        p0.translate_update(dh, translation);
+                        std::cout << "O TRANSLATION ACCEPTED" << std::endl;
+
+                    }
+                }
+            }
         }
-        else {
-            std::cout << "link rejected" << std::endl;
-        }
-
-        p0.output_for_ovito4("step2");
-        //p0.unlink();
-        std::cout << "3rd link move " << std::endl;
-        p0.sample_link_region(s, alpha, beta, s_index);
-        if (!p0.reject_link1(s, alpha, beta)) {
-            p0.link(s, alpha, beta, s_index);
-            std::cout << "SUCCESS" << std::endl;
-            p0.update_positions();
-
-
-
-        }
-        else {
-            std::cout << "link rejected" << std::endl;
-        }
-        p0.output_for_ovito4("step3");
-        
-        p0.swivel1(success);
-        p0.output_for_ovito4("step4");
-        //std::cout << "zip move" << std::endl;
-        //bool move_success;
-        //p0.zip(move_success);
-        //p0.output_for_ovito4("step4");
-
-        //if (move_success) {
-        //    p0.update_positions();
-
-        //    c++;
-        //}
-
-        //std::cout << "unzip move" << std::endl;
-        //p0.unzip(move_success);
-        //if (move_success) {
-        //    p0.update_positions();
-
-        //    c++;
-        //}
-        //p0.output_for_ovito4("step5");
-
-        //std::cout << "2nd zip move" << std::endl;
-        //p0.zip(move_success);
-        //if (move_success) {
-        //    p0.update_positions();
-
-        //    c++;
-        //}
-        //p0.output_for_ovito4("step6");
-        //if (c == 3) {
-        //    std::cout << "stop";
-        //}
-        //p0.unzip();
-
-
-
-        //std::cout << "3rd link move " << std::endl;
-        //p0.generalized_link();
-        //std::cout << "UNLINK" << std::endl;
-        //p0.unlink();
-        //p0.unlink();
-        //p0.generalized_link();
-        //std::cout << "4th link move " << std::endl;
-
-        //p0.generalized_link();
-        //p0.output_for_ovito4();
-        auto stop = std::chrono::high_resolution_clock::now();
-
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        std::cout << duration.count() << std::endl;
-        time += duration.count();
-
+        i++;
     }
-    std::cout << "3 successful links " << l << std::endl;
-    std::cout << "average time " << time / static_cast<double>(trials) << std::endl;
+
 
 
 
