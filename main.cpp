@@ -33,13 +33,14 @@
 // 
 // acceptance rate is often nan. need to fix. 
 // 
-// do we always reject links if there are no structures left to try?
+// do we always reject links if there are no structures left to try? BMM: yes, notice that the acceptance should feature a term proportional to n_poss/(n_helix+1)
+//        where n_poss is the number of possible new structures (considered by the algorithm), n_helix is the number of existing helices 
 // 
 // are we protected against structures which contain one of the terminal endpoints? need to check for all moves. 
 // 
-// unlink growth limits. sometimes we have growth limits that connect e.g [38,16] & [41,38]. should just be one growth limit.
+// unlink growth limits. sometimes we have growth limits that connect e.g [38,16] & [41,38]. should just be one growth limit. BMM: I did not understand this
 // still need to include the extra probabilities which arise for each acceptance rule for example
-// the probability of picking a zipped structure. 
+// the probability of picking a zipped structure. BMM: see above 
 // 
 // structure id needs to be cleaned up i think. 
 // 
@@ -55,7 +56,7 @@
 // 
 // for metropolis hastings: 
 // ------------all our MC move functions shouldn't directly change the positions of the monomers because even if a move is successful
-// it could be rejected because of the acceptance probability.
+// it could be rejected because of the acceptance probability. BMM: to me (and in general) the MC move function takes care of everything (accept or not, update ..)  
 // 
 // 
 // build swivel
