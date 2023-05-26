@@ -24,11 +24,18 @@ public:
 	rosenbluth_growth() = default;
 	rosenbluth_growth(double prob, double weight, std::vector<std::vector<double>> position_vectors, bool rw);
 	rosenbluth_growth(double prob, double weight, double U, bool rw);
-	rosenbluth_growth(std::vector<int>& limits, std::vector<double>& weight_vals, std::vector<double>& U_values, bool rw);
+	rosenbluth_growth(std::vector<double>& weight_vals, std::vector<double>& U_values);
 	~rosenbluth_growth();
 	double get_config_prob();
 	double get_rosen_weight();
 	double get_energy();
+	double get_Ui(int index);
+	double get_Wi(int index);
+
+	std::vector<double> get_energies();
+	void set_energies(std::vector<double> energy_vals);
+	std::vector<double> get_weights();
+	void set_weights(std::vector<double> weight_vals);
 	std::vector<std::vector<double>> get_positions();
 	bool get_growth_method();
 
@@ -39,6 +46,7 @@ public:
 	void modify_weights(std::vector<int> limits, std::vector<double> new_weights);
 	void modify_energies(std::vector<int> limits, std::vector<double> new_energies);
 
+	//rosenbluth_growth& operator=(const rosenbluth_growth &rhs);
 };
 
 double lennard_jones_ij(std::vector<double> position_i, std::vector<double> position_j);

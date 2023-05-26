@@ -16,8 +16,7 @@ helix_struct::helix_struct(std::vector<int> monomers, std::vector<double>& v_vec
 	alpha = a; 
 	beta = b;
 	set_growth_direction();
-	std::vector<std::vector<double>> rcs(2);
-	running_centres = rcs;
+	running_centres = r_centres;
 
 }
 helix_struct::helix_struct(std::vector<int>& monomers, std::vector<double>& v_vec, int a, int b) {
@@ -102,6 +101,7 @@ void helix_struct::shorten(int o, std::vector<double> &u_vec, std::vector<double
 void helix_struct::shorten(std::vector<int>& x10sion) {
 	monomer_indices = x10sion;
 }
+
 
 void helix_struct::change_u_v(std::vector<double> &new_u, std::vector<double>& new_v) {
 	u = new_u, v = new_v;
