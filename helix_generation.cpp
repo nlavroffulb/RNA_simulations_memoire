@@ -1,7 +1,7 @@
 #include "helix_generation.h"
 #include "math_functions.h"
 #include "polymer_generation.h"
-#include "rosenbluth_growth_class.h"
+//#include "rosenbluth_growth_class.h"
 
 std::string random_base() {
     int rn = rand() % 4;
@@ -292,139 +292,7 @@ void generate(int region_length,
 }
 
 
-void reverse_generate(int region_length, std::vector<double>& v,
-    std::vector<double>& u, std::vector<double>& x, std::vector<double> y,
-    std::vector<std::vector<double>>& s_x, std::vector<std::vector<double>>& s_y) {
 
-    int n{ region_length };
-    std::vector<std::vector<double>> strand_x(n);
-    std::vector<std::vector<double>> strand_y(n);
-
-    std::vector<double> running_centre(3);
-    std::vector<double> up = rotate_helix(u, v, phi), wp(3);
-    std::vector<double> temp = multiplication_by_scalar(radius, up), temp_u(3);
-    running_centre = vector_subtraction(x, temp);
-
-    std::vector<double> w(3);
-    w = vector_subtraction(y, running_centre);
-    w = multiplication_by_scalar(1 / radius, w);
-
-    std::vector<double> running_x(3), running_y(3);
-
-    strand_x[n - 1] = x;
-    strand_y[0] = y;
-    int running_n{ 1 };
-    //print_1d_doub_vec(running_centre);
-    //print_1d_doub_vec(w);
-
-    while (running_n < n) {
-        temp = multiplication_by_scalar(pitch, v);
-        running_centre = vector_subtraction(running_centre, temp);
-
-        wp = rotate_helix(w, v, -phi);
-        w = wp;
-        temp = multiplication_by_scalar(radius, w);
-        running_y = vector_addition(temp, running_centre);
-
-        up = rotate_helix(u,v, phi);// should this be temp_u??
-        temp_u = up;
-        temp = multiplication_by_scalar(radius, temp_u);
-        running_x = vector_addition(running_centre, temp);
-
-
-        strand_x[n - running_n - 1] = running_x;
-        strand_y[running_n] = running_y;
-        running_n++;
-
-    }
-    temp = multiplication_by_scalar(pitch, v);
-    //running_centre = vector_subtraction(running_centre, temp);
-
-    //w = rotate_helix(u, v, -1.0 * theta);
-
-    w = rotate_helix(u, v, theta);
-    temp = multiplication_by_scalar(radius, w);
-
-    strand_y[n - 1] = vector_addition(running_centre, temp);
-    temp = multiplication_by_scalar(radius, u);
-    strand_x[0] = vector_addition(running_centre, temp);
-
-    s_x = strand_x;
-    s_y = strand_y;
-}
-
-void add_to_helix(std::vector<double> &u, std::vector<double> &v, std::vector<double> &o_x, std::vector<double> end_y, int side, int extra_bp, std::vector<std::vector<double>> &s_x,std::vector<std::vector<double>> &s_y) {// function to add base pairs to the helix
-    std::vector<double> w{ rotate_helix(u,v,theta) };
-
-    std::vector<std::vector<double>> s_xtra(extra_bp), s_ytra(extra_bp);
-
-    std::vector<double> temp{ multiplication_by_scalar(radius, u) },temp_u(3), up(3),wp(3);
-    std::vector<double> running_centre(3),running_x(3),running_y(3);
-
-
-    if (side == 0) {
-        //add the base pairs to the origin side
-
-        // v needs to point the other way
-        v[0] = -v[0];
-        v[1] = -v[1];
-        v[2] = -v[2];
-
-        running_centre = vector_subtraction(o_x, temp);
-
-
-    }
-    else if (side == 1) {
-        // add the base pairs to the end.
-        temp = multiplication_by_scalar(pitch, v);
-
-        up = rotate_helix(u, v, phi);
-
-        wp = rotate_helix(w, v, phi);
-
-        temp_u = up;
-
-        w = wp;
-        temp = multiplication_by_scalar(radius, temp_u);
-        running_x = vector_addition(running_centre, temp);
-        temp = multiplication_by_scalar(radius, w);
-
-        running_centre = vector_subtraction(end_y, temp);
-    }
-
-    int bp{ 0 };
-    while (bp < extra_bp) {
-        temp = multiplication_by_scalar(pitch, v);
-
-        running_centre = vector_addition(running_centre, temp);
-
-        up = rotate_helix(u, v, phi);
-
-        wp = rotate_helix(w, v, phi);
-
-        temp_u = up;
-
-        w = wp;
-        temp = multiplication_by_scalar(radius, temp_u);
-        running_x = vector_addition(running_centre, temp);
-        temp = multiplication_by_scalar(radius, w);
-
-        running_y = vector_addition(running_centre, temp);
-
-
-        // now we're loading in the bases in the order that they are grown. so imagine we have initially [4,6,10,12] going to [1,6,10,15] then s_x = [3,2,1], s_y = [13,14,15]. 
-        // have to think about it a bit differently for beta = 1.
-        s_xtra[bp] = running_x;
-        s_ytra[bp] = running_y;
-
-        bp++;
-
-
-    }
-    s_x = s_xtra;
-    s_y = s_ytra;
-
-}
 
 
 double side_length(int n) {
@@ -453,9 +321,3 @@ double sideways_length(int n)
     //return sqrt(pow(side_length(n), 2) + pow(helix_separation(), 2));
 }
 
-double consecutive_mon_sep() {
-    return sqrt(pow(pitch, 2) + pow(radius * phi, 2));
-}
-double max_ring_sep() {
-    return sqrt(pow(pitch, 2) + 4*pow(radius, 2));
-}

@@ -9,7 +9,6 @@ private:
     monomer* linked_monomer{ nullptr };
     std::string base{ "" };
 
-    //structure* part_of_structure{ nullptr };
 public:
     int id{ 0 };
     std::vector<int> left_right_link{ 0,-1 };
@@ -27,15 +26,11 @@ public:
     int get_id() { return id; }
     std::string get_base() { return base; }
 
-    //void link_to(monomer* link_to_or_null);
-    //monomer* linked_to();
 
 
     void change_position(std::vector<double> new_position);
     //destructor
-    ~monomer() { 
-        //std::cout << "Monomer destructor called\n"; 
-    }
+    ~monomer(){}
 };
 
 typedef std::vector<monomer*> monomers;
