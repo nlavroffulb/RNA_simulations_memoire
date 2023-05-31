@@ -58,10 +58,15 @@ std::vector<double> cross_product(std::vector<double> &a, std::vector<double> &b
 
 // probably more efficient way to do it.
 std::vector<double> sample_unit_perp_vector(std::vector<double> u) {
-    std::vector<double> axis{ rand2(0,1),rand2(0,1),rand2(0,1) };
-    axis = normalize(axis);
+    double mod{2.0}, cos{2.0};
+    while(mod>1 or cos>0.99){
+        std::vector<double> axis{ rand2(0,1),rand2(0,1),rand2(0,1) };
+        mod=vector_modulus(axis);
+        axis=normalize(axis);
+        u=normalize(u);
+        cos=dot_product(axis,u);
+    }
     std::vector<double> v{ cross_product(axis,u) };
-
     return normalize(v);
 }
 
@@ -128,8 +133,8 @@ double factorial(int n) {
 double choose(int n, int  k) {
     if (k == 0) return 1;
     return (n * choose(n - 1, k - 1)) / k;
-
 }
+
 double sum_of_elements(std::vector<double> v)
 {
     double sum{0};
