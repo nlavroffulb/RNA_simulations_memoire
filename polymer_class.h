@@ -15,27 +15,26 @@ class polymer {
 protected:
     monomers chain;
     helices helix_list;
-    //std::vector<std::vector<int>> search_results;
+    std::vector<std::vector<int>> search_results;
     std::vector<int> extendable_structures;
 
     std::vector<int> zipped_structures;
 
-    std::vector<std::vector<double>> excluded_volume;
+    std::vector<std::vector<double>> new_excluded_volume, old_excluded_volume;
 
 
     // data for acceptance probability calculation.
-    std::vector<std::vector<int>> regrowth_lims;
-    std::vector<std::vector < double >> regrown_positions;
-    rosenbluth_growth* accepted_weights;
-    rosenbluth_growth* proposed_weights;
-
+    std::vector<std::vector<int>> new_growth_lims, old_growth_lims;
+    std::vector<std::vector < double >> new_config_positions, old_config_positions;
+    rosenbluth_growth *accepted_weights, *old_weights;
+    rosenbluth_growth* new_weights;
     helix_struct* proposed_link_helix;
     std::vector<int> proposed_unlink;
 
     std::vector<double> new_running_centre;
     std::vector<int> zip_unzip_structure;
 
-    double helix_interaction_weight{0.0};
+    double helix_interaction_weight{1.0};
     
 
     bool rosenbluth_switch{true};// 1 equals on, 0 equals off.
@@ -44,7 +43,6 @@ private:
     int N{ 0 };
 
 public:
-    std::vector<std::vector<int>> search_results;
 
     //constructors
     polymer() = default;
@@ -72,12 +70,13 @@ public:
     void update_large_struct_list();
     void update_extensible_structures();
     void update_positions();
+    void reset_weights();// function to be called once a move has been accepted.
     void neighbouring_linkers();
     void update_excluded_volume(std::vector<std::vector<int>>& growth_limits, std::vector<int> helix = {});
     void get_linked_monomers(std::vector<int>& links);
     bool overlapping_monomers(std::vector<int>& reaction_region);
-    void structure_extension(std::vector<int>& s, int& index);
-    bool zip_structure_overlap(std::vector<int> s_z, int side);
+    void structure_extension(std::vector<int>& s, int& index);// returns (by reference) the possible extension of a double helix
+    bool zip_structure_overlap(std::vector<int> s_z, int side);// we shouldn't zip into another double helix structure.
     ////////////////////////////////////////////////////////////////////////////////////////
     // our double helix structures are represented by [a b c d] where a b c and d are not consecutive to each other usually, they
     //define limits. sometimes its useful to "unpack" that representation: [a,a+1,...,b, c,c+1,...,d] and vice versa.
@@ -90,11 +89,13 @@ public:
     bool reject_link(std::vector<int>& link_region, int alpha, int beta);
     void link(std::vector<int>& link_region, int alpha, int beta, int ss_index);
     void link_update(int ss_index);
+    void link_growth_limits(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits);
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // unlink specific functions
     void sample_unlink_region(int& helix_index);
     void unlink(int helix_index);
     void unlink_update(int s_index); // if move is accepted
+    void unlink_growth_limits(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits);
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // zip related functions
     void zip_growth_limits(std::vector<int>& s, int side, std::vector<std::vector<int>>& growth_limits);
@@ -115,13 +116,15 @@ public:
     double link_acceptance(bool link_or_unlink);
     double zip_acceptance(bool zip_or_unzip, int side);
     double swivel_acceptance();
+    double p_gen_configuration(bool forward_move);
     double p_gen_ratio(std::vector<int> limit);
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     void helix_excluded_volume_interaction(std::vector<std::vector<double>>& helix_positions);
     void grow_limits(std::vector<std::vector<int>>& limits, int alpha);// V IMPORTANT FUNCTION. selects whether to use 'yamakawa' or random walk.
-
+    void grow_limits(std::vector<std::vector<int>>& limits, int alpha, bool forward_move);
+    void old_config_grow_limits(std::vector < std::vector<int>>& limits, int alpha);
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     // swivel specific functions
     void swivel(bool success);

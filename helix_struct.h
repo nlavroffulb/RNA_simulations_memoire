@@ -1,7 +1,7 @@
 #pragma once
 #include<vector>
 #include<iostream>
-const int standard_struct_size{ 3 };
+const int standard_struct_size{ 3 };// we always start with double helices of 3 base pairs.
 class helix_struct {
 
 private:
@@ -19,9 +19,7 @@ private:
 public: 
 	//constructor
 	helix_struct() = default;
-	helix_struct(int o,std::vector<double> &u, std::vector<double> &v, std::vector<int> &monomer_indices, int growth_direction);
 	helix_struct(std::vector<int> monomers, std::vector<double>& v, std::vector < std::vector<double>> r_centres, int alpha, int beta);
-	helix_struct(std::vector<int>& monomers, std::vector<double>& v, int alpha, int beta);
 
 	~helix_struct(){
 		std::cout << "Helix struct destructor called." << std::endl;

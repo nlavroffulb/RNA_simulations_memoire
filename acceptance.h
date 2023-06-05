@@ -1,5 +1,4 @@
 #pragma once
-#include "rosenbluth_sampling.h"
 #include <vector>
 //double p_select_helix_origin() { return 0.25; }
 
