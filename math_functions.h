@@ -30,7 +30,7 @@ double factorial(int n);
 double choose(int n, int  k);
 double sum_of_elements(std::vector<double> v);
 double product_of_elements(std::vector < double> &v);
-
+double average_of_elements(std::vector<double>& v);
 void print_1d_int_vec(std::vector<int> vec);
 void print_1d_doub_vec(std::vector<double> vec);
 void print_2d_int_vec(std::vector<std::vector<int>> vec);

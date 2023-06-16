@@ -21,16 +21,19 @@ double ideal_chain_pdf(double &e2e_distance, int n_segments)//'yamakawa' functio
 
 	}
 	else if (n_segments > 170) {
-		return pow(1.5 * pi * n_segments, 3.0 / 2.0) * exp(-3.0 * pow(e2e_distance, 2) / (2 * n_segments));
+		return pow(1.5 / (pi * n_segments), 3.0 / 2.0) * exp(-1.5 * pow(e2e_distance, 2) / n_segments);
 	}
 }
 
 double segment_grow_prob(double new_e2e, double old_e2e, int l_minus_i) {
-	//return ideal_chain_pdf(new_e2e, l_minus_i) / (4*pi*ideal_chain_pdf(old_e2e, l_minus_i +1));
+	return ideal_chain_pdf(new_e2e, l_minus_i) / (4*pi*ideal_chain_pdf(old_e2e, l_minus_i +1));
+	//return ideal_chain_pdf(new_e2e, l_minus_i);
+
+}
+double unnorm_segment_grow_prob(double new_e2e, int l_minus_i) {
 	return ideal_chain_pdf(new_e2e, l_minus_i);
 
 }
-
 bool overstretch(int l_minus_i, double &trial_e2e) {
 	if (trial_e2e > (l_minus_i)* a) {
 		return true;
@@ -58,10 +61,10 @@ std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<d
 		//pdf max
 		std::vector<double> temp{ vector_subtraction(N_position,initial) };
 		double init_e2e{ vector_modulus(temp) };
-		double pdf_max{ segment_grow_prob(abs(init_e2e - a),init_e2e,segments_to_regrow) };
+		double pdf_max{ unnorm_segment_grow_prob(abs(init_e2e - a),segments_to_regrow) };
 
 		//trial jump
-		std::vector<double> jump(3);
+		std::vector<double> jump(3),test(3);
 		sample_jump_direction(jump, a);
 		std::vector<double> trial_position{ vector_addition(initial,jump) };
 		temp = vector_subtraction(N_position, trial_position);
@@ -71,21 +74,31 @@ std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<d
 		int over_count{ 0 };
 		double Y{ rand2(0,pdf_max) };
 
-		while (overstretch(segments_to_regrow, trial_e2e) == true || Y > segment_grow_prob(trial_e2e, init_e2e, segments_to_regrow)) {
+		//while (overstretch(segments_to_regrow-1, trial_e2e) == true || Y > segment_grow_prob(trial_e2e, init_e2e, segments_to_regrow)|| (abs(segments_to_regrow-1-trial_e2e)<0.1 && segments_to_regrow>3)) {
 			//std::cout << "rejected" << std::endl;
+		while (overstretch(segments_to_regrow - 1, trial_e2e) == true || Y > unnorm_segment_grow_prob(trial_e2e, segments_to_regrow)) {
+
 			Y = rand2(0, pdf_max);
 
 			sample_jump_direction(jump, a);
 			trial_position = vector_addition(initial, jump);
+			test = vector_subtraction(N_position, initial);
+			double init_e2e{ vector_modulus(test) };
 			temp = vector_subtraction(N_position, trial_position);
 			trial_e2e = vector_modulus(temp);
 			over_count++;
-			if (over_count > 10000) {
+			if (over_count > 1000000) {
 				over_count++;
 				std::cout << "stuck" << std::endl;
+				if (segments_to_regrow - 1 > trial_e2e) {
+					std::cout << "outie" << std::endl;
+				}
 			}
 		}//std::cout << "rejections" << over_count << std::endl;
-
+		if (over_count > 10000) {
+			over_count++;
+			std::cout << "ESCAPE AFTER STUCK" << std::endl;
+		}
 		return trial_position;
 
 	}
@@ -218,3 +231,41 @@ std::vector<std::vector<double>> random_walk(std::vector<double> &starting_end, 
 }
 
 
+std::vector<std::vector<double>> grow_chain(std::vector<double>& starting_end,
+	std::vector<double>& ending_end, int l) {
+
+	std::vector<std::vector<double>> positions(l + 1);
+	std::vector<double> generated_position(3);
+	std::vector<double> old_position{ starting_end };
+	positions[0] = starting_end;
+	int i_segments;
+
+
+	//i is the monomer that is being grown. if you have 4 segments in total for example then you need
+	//to add 3 monomers in addition to the endpoints so i=1,2,3. Note that including the endpoints we have
+	//5 monomers in total in the flexible chain. 
+	for (int i = 1; i <= l - 1; i++) {
+		std::vector<double> trial_position(3);
+
+		//std::cout <<"regrowth stage " << i << std::endl;
+		if (l - i > 1) {
+			i_segments = l - i;
+			//if(i!=1)
+			generated_position = rejection_sample(old_position, ending_end, i_segments);
+			old_position = generated_position;
+			positions[i] = generated_position;
+
+		}
+		else if (l - i == 1) {
+			//std::cout << "Crankshaft regime" << std::endl;
+			trial_position = crankshaft_insertion(positions[l - 2], ending_end);
+			generated_position = trial_position;
+
+			positions[l - 1] = generated_position;
+
+		}
+	}
+	positions[l] = ending_end;
+
+	return positions;
+}

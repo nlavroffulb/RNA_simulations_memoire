@@ -53,7 +53,7 @@ std::vector<double> select_trial(std::vector<std::vector<double>>& trial_positio
 // overall probability of generating a set of monomers
 double configuration_probability(std::vector<double>& energies, std::vector<double>& weights);
 
-void rosenbluth_sample_helix(int n, std::vector<double>& origin, std::vector<double>& u, std::vector<double>& v, std::vector<std::vector<double>> excluded_volume_positions);
+void rosenbluth_sample_helix(int n, std::vector<double>& origin, std::vector<double>& u, std::vector<double>& v, std::vector<std::vector<double>>& excluded_volume_positions, double &rosenbluth_factor);
 
 // hasn't been implemented.
 std::vector<std::vector<double>> select_helix(std::vector<std::vector<std::vector<double>>>& trial_helices,
@@ -70,3 +70,6 @@ std::vector<std::vector<double>> rosenbluth_grow_chain(std::vector<double>& star
 
 std::vector<std::vector<double>> rosenbluth_random_walk(std::vector<double>& starting_end, int monomers, std::vector<std::vector<double>>& excluded_volumes,
 	std::vector<double>& energy_vals, std::vector<double>& weight_vals);
+
+std::vector<std::vector<double>> grow_section(std::vector<std::vector<double>>& fixed_points, int segments, std::vector<std::vector<double>>& excluded_volumes, std::vector<double>& energy_vals, std::vector<double>& weight_vals, bool yamakawa, bool forward_move, std::vector<std::vector<double>> accepted_positions = {});
+

@@ -3,7 +3,7 @@
 
 
 std::vector<double> vector_addition(std::vector<double> &vector1, std::vector<double> &vector2) {
-
+    //std::cout << "here" << std::endl;
     return { vector1[0] + vector2[0],vector1[1] + vector2[1],vector1[2] + vector2[2] };
 }
 std::vector<double> vector_subtraction(std::vector<double> &vector1, std::vector<double> &vector2) {
@@ -165,6 +165,14 @@ double product_of_elements(std::vector<double>& v) {
         prod *= n;
     }
     return prod;
+}
+double average_of_elements(std::vector<double>& v)
+{
+    double sum{ 0.0 };
+    for (auto i : v) {
+        sum += i;
+    }
+    return sum / static_cast<double>(v.size());
 }
 //**************************************************************************************////**************************************************************************************//
 //**************************************************************************************////**************************************************************************************//

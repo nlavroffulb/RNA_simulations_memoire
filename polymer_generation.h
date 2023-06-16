@@ -16,6 +16,8 @@ std::vector<std::vector<double>> grow_chain(std::vector<double> &starting_end,
 	std::vector<double> &ending_end, int l,
 	std::vector<std::vector<double>>& excluded_volumes);
 
+std::vector<std::vector<double>> grow_chain(std::vector<double>& starting_end,
+	std::vector<double>& ending_end, int l);
 
 std::vector<std::vector<double>> random_walk(std::vector<double> &starting_end, int segments, std::vector<std::vector<double>>& excluded_volumes);
 

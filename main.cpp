@@ -13,33 +13,19 @@
 #include <chrono>
 #include <algorithm>
 
-//#include "ran2.h"
-
-// average time for 2 consecutive link moves: 1937 ms (almost 2 seconds yikes). 4/4 15:00. need to get this down a lot.
-// 1170ms 5/4 20:00 KEEP GOING !!!
-// 830ms 5/4 20:30 RAHHHHHHHHHH!!!
-
-// average time for 3 consecutive link moves 27/4: 700ms. quite good.
-
-// time for 2 links and 1 unlink
-// 1356ms 5/4 21:00
-// 
-// 
-// 
-// 
 //TO DO.  
 ////////////////////////////////////////////////////////////////////////////////////////
 
-// excluded volume of helixes. could still be done.
+// appears to be a bug in which for a growth limit [a,b] between fixed ends, the weight of the (b-2)th monomer is often 0. this is the monomer right before crankshaft insertion. not sure what's going on but after 
+// quite a bit of testing i can't find the bug, it seems to be working as intended. might come back to this later but for now i have to assume this is working as intended.
 // 
-// want to make an off switch for Rosenbluth sampling. I would guess the simplest thing to do would be to set k = 1.
+// yamakawa function tests didn't work great. perhaps it's because im not testing in the long enough limit ? (number of 
+// segments tends to infinity).
 // 
 // how does swivel work with zipped structures? before we assumed that the centre of mass was in the plane of 
 // one of the base pairs however if we have an even number of base pairs e.g 4 this will not be the case, so is 
 // it working correctly? probably not.
 // 
-// getting a subscript vector out of range occasionally. still quite a few bugs to correct and generally 
-// the acceptance rules are not clean.
 // 
 // can make metropolis structure more efficient. e,g only calculate search results, extensible structures when 
 // a certain move has been accepted. after a series of rejections it should not be re calcualted.
@@ -49,11 +35,9 @@
 // change zip so that we always sample the side of zip from which we can actually extend the helix. need to modify
 // the acceptance rule potentially.
 // 
-// global constants header file.
 // 
 // acceptance rate is often nan. need to fix. 
 // 
-// do we always reject links if there are no structures left to try?
 // 
 // are we protected against structures which contain one of the terminal endpoints? need to check for all moves. 
 // 
@@ -71,9 +55,6 @@
 // we could just consider that w,x,y,z go from 3' to 5'. don't need to reverse it. remove the alpha dependency from w,x,y,z. then 
 // there would be no need to reverse them.
 // 
-// for metropolis hastings: 
-// ------------all our MC move functions shouldn't directly change the positions of the monomers because even if a move is successful
-// it could be rejected because of the acceptance probability.
 // 
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -98,13 +79,56 @@ int main()
 
 
     
-    polymer p0(70);
+    //polymer p0(70);
     double u1, u2, u3;
-    int NMC{ 100 },i{0};
+    int NMC{ 1000 },i{0};
 
-    link_unlink_hairpin_sim(NMC, 50, true);
+    //hairpin_sim_varying_length(NMC, 110, true);
+    link_unlink_hairpin_sim(NMC, 30, true);
 
 
+     //   simple example of growing the polymer once and can output txt file to view it in ovito. can also measure
+     //performance.
+ 
+
+    //********************************************************************************
+    //********************************************************************************
+    //********************************************************************************
+
+    //code to investigate e2e distance of middle monomer for polymer of length 71. 
+    // results outputted to text file.
+ 
+    //auto start = std::chrono::high_resolution_clock::now();
+    //int N_sims{ 10000 };
+    ////std::vector<double> sim_results(N_sims);
+    //std::vector<double> sim_results(2*N_sims), temp(3);
+    //std::vector<double> N_position{ 0,0,50 }, initial_position{ 0,0,0 };
+    //int N_seg{ 120 };
+    //int N_mid = N_seg / 2;
+    //for (int i{ 0 }; i < N_sims; i++) {
+    //    std::cout << i << std::endl;
+    //    std::vector<std::vector<double>> p{ grow_chain(N_position,initial_position,N_seg) };
+    //    temp = vector_subtraction(p[N_mid],initial_position);
+    //    sim_results[2*i]=temp[2];
+    //    temp = vector_subtraction(N_position, p[N_mid]);
+    //    sim_results[2 * i + 1] = temp[2];
+
+    //}
+
+    //const char* path = "C:/Users/32471/Documents/Mémoire/testing yamakawa function/sim_results_x.txt";
+    //std::ofstream file(path); //open in constructor
+
+    //for (int k{ 0 }; k<sim_results.size(); k++) {
+    //    file << sim_results[k] << std::endl;
+    //}
+    //std::ofstream vector("sim_results2.txt");
+    //for (int k{ 0 }; k < N_sims; k++) {
+    //    file << sim_results[k] << std::endl;
+    //}
+
+    //********************************************************************************
+    //********************************************************************************
+    //********************************************************************************
 
 
 

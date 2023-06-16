@@ -20,16 +20,16 @@ protected:
 
     std::vector<int> zipped_structures;
 
-    std::vector<std::vector<double>> new_excluded_volume, old_excluded_volume;
+    std::vector<std::vector<double>> excluded_volume;
 
 
     // data for acceptance probability calculation.
     std::vector<std::vector<int>> new_growth_lims, old_growth_lims;
     std::vector<std::vector < double >> new_config_positions, old_config_positions;
-    rosenbluth_growth *accepted_weights, *old_weights;
+    rosenbluth_growth *old_weights;
     rosenbluth_growth* new_weights;
+    double helix_R_factor;
     helix_struct* proposed_link_helix;
-    std::vector<int> proposed_unlink;
 
     std::vector<double> new_running_centre;
     std::vector<int> zip_unzip_structure;
@@ -47,7 +47,9 @@ public:
     //constructors
     polymer() = default;
     polymer(int num);
-    polymer(int num, bool rosenbluth);
+    polymer(int num, bool rosenbluth, int struct_size=3);
+    polymer(int num, bool rosenbluth, std::vector<std::string>& sequence, int struct_size = 3);
+
 
     //destructor
     ~polymer();
@@ -59,7 +61,8 @@ public:
     void print_bases1();
     void output_for_ovito4(std::string filename="");
     void ovito_bonds(std::string filename = "");
-
+    std::vector<std::string> get_sequence();
+    std::vector<std::vector<double>> get_subpositions(std::vector<int> limit);
     //operator overload function. allows us to write chain[i] as a reference to a monomer object.
     monomer* operator[](int i);
 
@@ -67,10 +70,10 @@ public:
     // at different moments in the simulation we have to update different member variables or other quantities
     //usually based on whether a move is accepted or rejected. we also need to search for a compatible regions.
     std::vector<std::vector<int>> structure_search(int n=3);
+    void set_search_results(int n);
     void update_large_struct_list();
     void update_extensible_structures();
     void update_positions();
-    void reset_weights();// function to be called once a move has been accepted.
     void neighbouring_linkers();
     void update_excluded_volume(std::vector<std::vector<int>>& growth_limits, std::vector<int> helix = {});
     void get_linked_monomers(std::vector<int>& links);
@@ -116,15 +119,13 @@ public:
     double link_acceptance(bool link_or_unlink);
     double zip_acceptance(bool zip_or_unzip, int side);
     double swivel_acceptance();
-    double p_gen_configuration(bool forward_move);
+    double weight_gen_config(bool forward_move);
     double p_gen_ratio(std::vector<int> limit);
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     void helix_excluded_volume_interaction(std::vector<std::vector<double>>& helix_positions);
-    void grow_limits(std::vector<std::vector<int>>& limits, int alpha);// V IMPORTANT FUNCTION. selects whether to use 'yamakawa' or random walk.
     void grow_limits(std::vector<std::vector<int>>& limits, int alpha, bool forward_move);
-    void old_config_grow_limits(std::vector < std::vector<int>>& limits, int alpha);
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     // swivel specific functions
     void swivel(bool success);
@@ -139,5 +140,10 @@ public:
     void corkscrew_update(helix_struct* dh);
     void spin_update(helix_struct* dh, std::vector<double>& rot_axis, double angle);
     void translate_update(helix_struct* dh, std::vector<double>&translation);
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    double configuration_energy();
+
 };
 
