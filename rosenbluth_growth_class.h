@@ -1,7 +1,7 @@
 #include <vector>
 #include "math_functions.h"
 #include "polymer_generation.h"
-
+#include "helix_generation.h"
 
 class rosenbluth_growth {
 private:
@@ -38,6 +38,7 @@ public:
 	void modify_weights(std::vector<int> limits, std::vector<double> new_weights);
 	void modify_energies(std::vector<int> limits, std::vector<double> new_energies);
 
+	rosenbluth_growth& operator=(const rosenbluth_growth& rhs);
 };
 
 double weeks_chandler_ij(std::vector<double> position_i, std::vector<double> position_j);
@@ -51,6 +52,8 @@ std::vector<double> select_trial(std::vector<std::vector<double>>& trial_positio
 
 // overall probability of generating a set of monomers
 double configuration_probability(std::vector<double>& energies, std::vector<double>& weights);
+
+void rosenbluth_sample_helix(int n, std::vector<double>& origin, std::vector<double>& u, std::vector<double>& v, std::vector<std::vector<double>> excluded_volume_positions);
 
 // hasn't been implemented.
 std::vector<std::vector<double>> select_helix(std::vector<std::vector<std::vector<double>>>& trial_helices,

@@ -42,8 +42,8 @@ double sample_e2e(double init_e2e_distance) {
 	return init_e2e_distance + rand2(-a, a);
 }
 
-void sample_jump_direction(std::vector<double> &jump, double bond_distance) {
-	bond_distance = a;
+void sample_jump_direction(std::vector<double> &jump, double length) {
+	length = a;
 
 	double phi{ rand2(0,2 * pi) }, theta{ acos(1-2*rand2(0,1)) };//correct sampling of cos theta using 
 	//inverse transform sampling

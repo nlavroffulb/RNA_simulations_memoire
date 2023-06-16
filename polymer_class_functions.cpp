@@ -12,7 +12,7 @@ polymer::polymer(int num) {
     std::vector<std::vector<double>> positions(N);
     std::vector<double> weights(N), energies(N);
     std::vector<double> start{ 0.0,0.0,0.0 };
-    positions = rosenbluth_random_walk(start, N - 1, excluded_volume, energies, weights);
+    positions = rosenbluth_random_walk(start, N - 1, new_excluded_volume, energies, weights);
     std::vector<monomer*> M(N);
     for (int i{ 0 }; i < N; i++) {
         M[i] = new monomer(positions[i], i, random_base());
@@ -23,9 +23,10 @@ polymer::polymer(int num) {
 
     std::vector<int> limit{ 0,N - 1 };
     accepted_weights = new rosenbluth_growth(weights, energies);
-    proposed_weights = new rosenbluth_growth(weights, energies);
+    old_weights = new rosenbluth_growth(weights, energies);
+    new_weights = new rosenbluth_growth(weights, energies);
 
-    regrown_positions = positions;
+    new_config_positions = positions;
 }
 
 polymer::polymer(int num, bool rosenbluth)
@@ -34,12 +35,15 @@ polymer::polymer(int num, bool rosenbluth)
     std::vector<std::vector<double>> positions(N);
     std::vector<double> weights(N), energies(N);
     std::vector<double> start{ 0.0,0.0,0.0 };
+    new_excluded_volume.push_back(start);
     if (rosenbluth == true) {
-        positions = rosenbluth_random_walk(start, N - 1, excluded_volume, energies, weights);
-
+        positions = rosenbluth_random_walk(start, N - 1, new_excluded_volume, energies, weights);
+        energies.insert(energies.begin(), 0);
+        weights.insert(weights.begin(), 1);
     }
+    
     else if (rosenbluth == false) {
-        positions = random_walk(start, N - 1, excluded_volume);
+        positions = random_walk(start, N - 1, new_excluded_volume);
     }
     std::vector<monomer*> M(N);
     for (int i{ 0 }; i < N; i++) {
@@ -53,7 +57,8 @@ polymer::polymer(int num, bool rosenbluth)
     std::vector<int> limit{ 0,N - 1 };
     if (rosenbluth_switch == true) {
         accepted_weights = new rosenbluth_growth(weights, energies);
-        proposed_weights = new rosenbluth_growth(weights, energies);
+        old_weights = new rosenbluth_growth(weights, energies);
+        new_weights = new rosenbluth_growth(weights, energies);
 
     }
     else {
@@ -61,12 +66,14 @@ polymer::polymer(int num, bool rosenbluth)
         std::fill(energies.begin(), energies.end(), 0.0);
 
         accepted_weights = new rosenbluth_growth(weights, energies);
-        proposed_weights = new rosenbluth_growth(weights, energies);
+        old_weights = new rosenbluth_growth(weights, energies);
+        new_weights = new rosenbluth_growth(weights, energies);
 
 
     }
 
-    regrown_positions = positions;
+    new_config_positions = positions;
+    old_config_positions = positions;
 }
 
 
@@ -499,11 +506,17 @@ void polymer::sample_link_region(std::vector<int>& link, int& alpha, int& beta, 
     ss_index = region_index0;
     link = search_results[region_index0];
 
-    // sample helix origin. 
-    alpha = static_cast<int>(rand2(0, 2));
-    beta = static_cast<int>(rand2(0, 2));
+    // we only sample alpha and beta if there is more than 1 double helix structure already.
+    if (helix_list.size() > 1) {
+        alpha = static_cast<int>(rand2(0, 2));
+        beta = static_cast<int>(rand2(0, 2));
 
-    //std::cout << "sample link region done" << std::endl;
+    }
+    else {
+        alpha = 0;
+        beta = 0;
+    }
+    std::cout << "alpha = " << alpha << " beta = " << beta << std::endl;
 
 }
 
@@ -551,8 +564,12 @@ void polymer::unlink(int struct_index) {
         //int s_i{ static_cast<int>(rand2(0,helix_list.size())) };
         std::vector<int> destructure{ helix_list[struct_index]->get_monomers() };
 
-        int alpha{ static_cast<int>(rand2(0, 2)) };//alpha == 0 is 3' to 5' growth. alpha == 1 is 5' to 3' growth
-        int beta{ static_cast<int>(rand2(0, 2)) };
+        int alpha{0}, beta{0};
+        if (helix_list.size() !=1) {
+            alpha = static_cast<int>(rand2(0, 2));
+            beta = static_cast<int>(rand2(0, 2));
+
+        }
         std::cout << "alpha = " << alpha << " beta = " << beta << std::endl;
 
         std::vector<int> reaction_region{ destructure };
@@ -605,30 +622,43 @@ void polymer::unlink(int struct_index) {
             }
         }
         else if (beta == 1) {
-            degrowth_limits.push_back({ w,b });
-            degrowth_limits.push_back({ y,z });
+            if (middle_struct) {
+                degrowth_limits.push_back({ w,b });
+                degrowth_limits.push_back({ y,z });
+            }
+            else {
+                degrowth_limits.push_back({ w,z });
+            }
+
         }
 
         std::cout << "degrowth limits" << std::endl;
+        std::vector<std::vector<int>> temp;
         for (auto i : degrowth_limits) {
             std::cout << i[0] << " " << i[1] << std::endl;
         }
-
-
-        //// perform degrowth
-        // the growth bit. 
+       
         update_excluded_volume(degrowth_limits);
-        proposed_unlink = destructure;
-        // need to get the old excluded volume interaction term for the helix.
-        std::vector<std::vector<double>> helix_positions(abs(destructure[1] - destructure[0]) + 1);
-        unpack_region(destructure);
-        for (int i{ 0 }; i < destructure.size(); i++) {
-            helix_positions[i] = chain[i]->get_position();
-        }
-        pack_region(destructure);
-        helix_excluded_volume_interaction(helix_positions);
 
+        // grow the new structure (unlinked)
+        proposed_unlink = destructure;
+        if (rosenbluth_switch == false) {
+            // need to get the old excluded volume interaction term for the helix.
+            std::vector<std::vector<double>> helix_positions(2 * (abs(destructure[1] - destructure[0]) + 1));
+            unpack_region(destructure);
+            for (int i{ 0 }; i < destructure.size(); i++) {
+                helix_positions[i] = chain[i]->get_position();
+            }
+            pack_region(destructure);
+            helix_excluded_volume_interaction(helix_positions);
+
+        }
         grow_limits(degrowth_limits, alpha);
+
+        // grow the old structure (linked)
+        std::vector<std::vector<int>> link_limits;
+        link_growth_limits(destructure, alpha, beta, link_limits);
+        grow_limits(link_limits, alpha, false);
 
         print_1d_int_vec(destructure);
 
@@ -665,10 +695,67 @@ void polymer::unlink_update(int s_i) {
 
     // update positions and neighbours
     update_positions();
-    //print_monomer_positions();
-    //neighbouring_linkers();
 
-    //accepted_weights = proposed_weights;
+    accepted_weights = new_weights; // this line could be written in the acceptance rule function.
+}
+
+void polymer::unlink_growth_limits(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits)
+{
+    std::vector<int> reaction_region{ helix };
+    if (alpha == 1) {
+        std::sort(reaction_region.begin(), reaction_region.end(), std::greater<>());
+
+    }
+
+    int a, b, c, d;
+
+    a = reaction_region[0];
+    b = reaction_region[1];
+    c = reaction_region[2];
+    d = reaction_region[3];
+
+    if (alpha == 1) {
+        std::sort(reaction_region.begin(), reaction_region.end());
+
+    }
+
+    //define w,x,y,z as the leftmost linker, middle linkers and rightmost linkers respectively in the most
+    //complicated case where there are structures on either side of the structure to be unlinked as well as in
+    //the middle.
+    int w, x, y, z;//sometimes some of these will be the same.
+    w = chain[a]->left_right_link[alpha];
+    x = chain[b]->left_right_link[1 - alpha];
+    y = chain[c]->left_right_link[alpha];
+    z = chain[d]->left_right_link[1 - alpha];
+
+
+    int region_size{ abs(b - a) + 1 };
+    bool middle_struct{ true };
+    if (abs(b - c) < abs(b - x)) {
+        //x = c;
+        y = b;
+        middle_struct = false;
+    }
+
+    std::vector<std::vector<int>> degrowth_limits;
+
+    if (beta == 0) {
+        degrowth_limits.push_back({ a,x });
+        if (middle_struct) {
+            degrowth_limits.push_back({ y,z });
+        }
+    }
+    else if (beta == 1) {
+        if (middle_struct) {
+            degrowth_limits.push_back({ w,b });
+            degrowth_limits.push_back({ y,z });
+        }
+        else {
+            degrowth_limits.push_back({ w,z });
+        }
+
+    }
+    growth_limits = degrowth_limits;
 
 }
 
@@ -729,78 +816,70 @@ void polymer::link(std::vector<int>& link_region, int alpha, int beta, int ss_in
         x = c;
         y = b;
     }
-    std::vector<std::vector<int>> free_growth_limits;
-    std::cout << "abcd " << a << " " << b << " " << c << " " << d << std::endl;
-    std::cout << "wxyz " << w << " " << x << " " << y << " " << z << std::endl;
+    std::vector<std::vector<int>> link_limits;
 
     if (beta == 1) {
-        free_growth_limits.push_back({ w,a });
+        link_limits.push_back({ w,a });
     }
     else if (beta == 0 && y != b) {
-        free_growth_limits.push_back({ b,x });
+        link_limits.push_back({ b,x });
     }
-    free_growth_limits.push_back({ y,c });
-    free_growth_limits.push_back({ d,z });
+    link_limits.push_back({ y,c });
+    link_limits.push_back({ d,z });
 
-    std::cout << "growth limits" << std::endl;
-    print_2d_int_vec(free_growth_limits);
+    std::cout << " link growth limits" << std::endl;
+    print_2d_int_vec(link_limits);
+
 
     //start the growth. 
 
     //first update the excluded volume
-    update_excluded_volume(free_growth_limits, reaction_region);
+    update_excluded_volume(link_limits, reaction_region);
 
     // grow helix
+
     std::vector<std::vector<double>> s_x, s_y;
     std::vector<double> u, v;
-    sample_helix_vectors(u, v);
-
     std::vector<double> o_h{ chain[origin]->get_position() };
     std::vector<std::vector<double>> rcentres(2);
-    generate(region_size, v, u, o_h, s_x, s_y,rcentres);
 
-    std::vector<std::vector<double>> helix_pos{s_x};
-    helix_pos.insert(helix_pos.end(), s_y.begin(), s_y.end());
-    helix_excluded_volume_interaction(helix_pos);
 
-    // we want to take into account the excluded volume interaction of the helix with the monomers that are not being regrown.
-    if (excluded_volume.size() == 0) {
-        helix_interaction_weight = 1;
+    // if we've turned on rosenbluth sampling then we rosenbluth sample the helix. the rosenbluth sample helix
+    // returns the selected helix vectors by reference.
+    if (rosenbluth_switch == true) {
+        rosenbluth_sample_helix(region_size, o_h, u, v, new_excluded_volume);
+        generate(region_size, v, u, o_h, s_x, s_y, rcentres);
+
     }
     else {
-        for (int i{ 0 }; i < region_size; i++) {
-            helix_interaction_weight = helix_interaction_weight + exp(-u_r(s_x[i], excluded_volume));
-            helix_interaction_weight = helix_interaction_weight + exp(-u_r(s_y[i], excluded_volume));
-        }
+        sample_helix_vectors(u, v);
+        generate(region_size, v, u, o_h, s_x, s_y, rcentres);
+        // when rosenbluth sampling is off, the excluded volume interaction between monomers that are not regrown and the monomers 
+        // that form the helix must be accounted for in the acceptance rule. (otherwise the term cancels).
+        std::vector<std::vector<double>> helix_pos{ s_x };
+        helix_pos.insert(helix_pos.end(), s_y.begin(), s_y.end());
+        helix_excluded_volume_interaction(helix_pos);
+
     }
 
+    // grow the new configuration (the linked one)
     int gamma{ static_cast<int>(pow(-1.0,alpha + beta)) };
     for (int i{ 0 }; i < region_size; i++) {
-        regrown_positions[origin + gamma * i] = s_x[i];
-        regrown_positions[origin_y + gamma * i] = s_y[i];
+        new_config_positions[origin + gamma * i] = s_x[i];
+        new_config_positions[origin_y + gamma * i] = s_y[i];
 
-        //chain[origin + gamma * i]->change_position(s_x[i]);
-        //chain[origin_y + gamma * i]->change_position(s_y[i]);
-        excluded_volume.push_back(s_x[i]);
-        excluded_volume.push_back(s_y[i]);
+        new_excluded_volume.push_back(s_x[i]);
+        new_excluded_volume.push_back(s_y[i]);
     }
-    //print_monomer_positions();
-
-    grow_limits(free_growth_limits, alpha);
-
-    //pack_region(reaction_region);
+    grow_limits(link_limits, alpha,true);
     proposed_link_helix = new helix_struct(reaction_region, v, rcentres, alpha, beta);
 
-    // update the linked neighbours for each monomer
-    //helix_list.push_back(dh);
-    //unpack_region(reaction_region);
-    //for (auto i : reaction_region) {
-    //    chain[i]->change_structure(helix_list.size() + 1);
-    //}
-    //search_results.erase(search_results.begin() + ss_index);//this line ensures that we remove the linked structure from the pool of
-
-    //neighbouring_linkers();//update neighbours
-
+    // grow the old configuration 
+    std::vector<std::vector<int>> unlink_limits;
+    unlink_growth_limits(reaction_region, alpha, beta, unlink_limits);
+    std::cout << "unlink growth limits" << std::endl;
+    print_2d_int_vec(unlink_limits);
+    grow_limits(unlink_limits, alpha, false);
 
 }
 
@@ -818,8 +897,58 @@ void polymer::link_update(int ss_index) {
 
     //neighbouring_linkers();//update neighbours
 
-    //accepted_weights = proposed_weights;
+    accepted_weights = new_weights;
+
     update_positions();
+
+}
+
+void polymer::link_growth_limits(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits)
+{
+    std::vector<int> reaction_region{ helix };
+
+    // define a,b,c,d as the extremes of the structure to be destroyed. either a,b,c,d could be the origin of the unlink.
+    int a, b, c, d;
+    if (alpha == 1) {
+        std::sort(reaction_region.begin(), reaction_region.end(), std::greater<>());
+
+    }
+
+    a = reaction_region[0];
+    b = reaction_region[1];
+    c = reaction_region[2];
+    d = reaction_region[3];
+
+    if (alpha == 1) {
+        std::sort(reaction_region.begin(), reaction_region.end());
+
+    }
+
+    //define w,x,y,z as the leftmost linker, middle linkers and rightmost linkers respectively in the most
+    //complicated case where there are structures on either side of the structure to be unlinked as well as in
+    //the middle.
+    int w, x, y, z;//sometimes some of these will be the same.
+    w = chain[a]->left_right_link[alpha];
+    x = chain[b]->left_right_link[1 - alpha];
+    y = chain[c]->left_right_link[alpha];
+    z = chain[d]->left_right_link[1 - alpha];
+
+    int region_size{ abs(b - a) + 1 };
+
+    if (abs(b - c) <= abs(b - x)) {
+        x = c;
+        y = b;
+    }
+    std::vector<std::vector<int>> free_growth_limits;
+
+    if (beta == 1) {
+        free_growth_limits.push_back({ w,a });
+    }
+    else if (beta == 0 && y != b) {
+        free_growth_limits.push_back({ b,x });
+    }
+    free_growth_limits.push_back({ y,c });
+    free_growth_limits.push_back({ d,z });
 
 }
 
@@ -955,7 +1084,7 @@ bool polymer::reject_link(std::vector<int>& link_region, int alpha, int beta)
 
 double polymer::link_acceptance(bool link_move)
 {
-    double W_b, W_u, Z_ni_A{ 0.27 }, Z_ni_B{ 0.27 }, Z_ni_AB{ 1 }, G0{ -2 }, rho0{ 1 }, U_b, U_u;
+    double W_b, W_u, Z_ni_A{ 0.27 }, Z_ni_B{ 0.27 }, Z_ni_AB{ 1 }, G0{ 0.6 }, rho0{ 1 }, U_b, U_u;
     double beta{ 1 };
 
     // link_move == 0 if we are doing an unlink move
@@ -980,9 +1109,10 @@ double polymer::link_acceptance(bool link_move)
     double deltaHno; // H_n - H_o. n = new, o = old.
     if (rosenbluth_switch == true) {
         deltaHno = 1.0;
+        helix_interaction_weight = 1;
     }
     else if (rosenbluth_switch == false) {
-        std::vector<std::vector<double>> old_positions{ generate_vector_of_monomer_positions()}, new_positions{regrown_positions};
+        std::vector<std::vector<double>> old_positions{ generate_vector_of_monomer_positions()}, new_positions{new_config_positions};
 
         //we don't want to count the monomers which are in a helix so we erase their positions from the calculation
 
@@ -1029,34 +1159,41 @@ double polymer::link_acceptance(bool link_move)
 
         }
 
-        deltaHno = sum_of_elements(new_ev_energies) - sum_of_elements(old_ev_energies)+ helix_interaction_weight;
+        deltaHno = sum_of_elements(new_ev_energies) - sum_of_elements(old_ev_energies);
         deltaHno = exp(-deltaHno);
         
     }
     double z{ 1 };
-    for (auto i : regrowth_lims) {
-        z = z * p_gen_ratio(i);
-        if (std::isinf(z)) {
-            std::cout << "caught" << std::endl;
-        }
-    }
-    double prefactors{ (exp(-beta * G0) / rho0) * (Z_ni_A * Z_ni_B / Z_ni_AB) };
-    double helix_excluded_volume{ helix_interaction_weight };
-    if (!link_move) {
-        prefactors = 1 / prefactors;
-        helix_excluded_volume = 1 / helix_interaction_weight;
-        
-    }
-    z = z * prefactors * P_select_ratio * deltaHno;
+    double P_gen_old, P_gen_new;
+    P_gen_old = p_gen_configuration(false);
+    P_gen_new = p_gen_configuration(true);
 
-    std::cout << " link acceptance ratio z " << z << std::endl;
-    if (z >= 1) {
-        return 1;
+    if (P_gen_old == 0 || P_gen_new == 0) {
+        return 0;
     }
     else {
-        return z;
-    }
+        double prefactors{ (exp(-beta * G0) / rho0) * (Z_ni_A * Z_ni_B / Z_ni_AB) };
+        double helix_excluded_volume{ helix_interaction_weight };
+        if (!link_move) {
+            prefactors = 1 / prefactors;
+            helix_excluded_volume = 1 / helix_interaction_weight;
 
+        }
+        double P_gen_ratio{ P_gen_new / P_gen_old };
+        z = P_gen_ratio * prefactors * P_select_ratio * deltaHno;
+        if (std::isnan(z) || std::isinf(z)) {
+            std::cout << "stop" << std::endl;
+        }
+        std::cout << " link acceptance ratio z " << z << std::endl;
+        if (z >= 1) {
+            return 1;
+        }
+        else {
+            return z;
+        }
+
+
+    }
 
 }
 
@@ -1076,43 +1213,43 @@ double polymer::zip_acceptance(bool zip_move, int side)
     double dG_M{ 1 }, dG_Mplus1{ 1.1 };
     double deltadG{ -(dG_Mplus1 - dG_M) };
 
-    if (regrowth_lims.size() > 1 && (regrowth_lims[0][0] > regrowth_lims[1][0])) {
-        std::reverse(regrowth_lims.begin(), regrowth_lims.end());
+    if (new_growth_lims.size() > 1 && (new_growth_lims[0][0] > new_growth_lims[1][0])) {
+        std::reverse(new_growth_lims.begin(), new_growth_lims.end());
     }
     
-    std::vector<std::vector<int>> old_growth_lims(regrowth_lims.size());
+    std::vector<std::vector<int>> old_growth_lims(new_growth_lims.size());
     int kappa;
     zip_move == 1 ? kappa = -1 : kappa = +1;
-    if (regrowth_lims.size() == 1) {
-        int i1{ regrowth_lims[0][0] }, i2{ regrowth_lims[0][1] };
+    if (new_growth_lims.size() == 1) {
+        int i1{ new_growth_lims[0][0] }, i2{ new_growth_lims[0][1] };
         old_growth_lims[0] = { i1 + kappa, i2 - kappa };
     }
     else {
         std::vector<int> temp(2);
         if (side == 0) {
-            temp[0] = regrowth_lims[0][0];
-            temp[1] = regrowth_lims[0][1] - kappa;
+            temp[0] = new_growth_lims[0][0];
+            temp[1] = new_growth_lims[0][1] - kappa;
             old_growth_lims[0] = temp;
             //old_growth_lims[0][0] = regrowth_lims[0][0];
             //old_growth_lims[0][1] = regrowth_lims[0][1] - kappa;
 
-            temp[0] = regrowth_lims[1][0] + kappa;
-            temp[1] = regrowth_lims[1][1];
+            temp[0] = new_growth_lims[1][0] + kappa;
+            temp[1] = new_growth_lims[1][1];
             old_growth_lims[1] = temp;
 
             //old_growth_lims[1][0] = regrowth_lims[1][0] + kappa;
             //old_growth_lims[1][1] = regrowth_lims[1][1];
         }
         else if (side == 1) {
-            temp[0] = regrowth_lims[0][0]+kappa;
-            temp[1] = regrowth_lims[0][1];
+            temp[0] = new_growth_lims[0][0]+kappa;
+            temp[1] = new_growth_lims[0][1];
             old_growth_lims[0] = temp;
 
             //old_growth_lims[0][0] = regrowth_lims[0][0] + kappa;
             //old_growth_lims[0][1] = regrowth_lims[0][1];
 
-            temp[0] = regrowth_lims[1][0];
-            temp[1] = regrowth_lims[1][1] - kappa;
+            temp[0] = new_growth_lims[1][0];
+            temp[1] = new_growth_lims[1][1] - kappa;
             old_growth_lims[1] = temp;
 
             //old_growth_lims[1][0] = regrowth_lims[1][0];
@@ -1120,19 +1257,19 @@ double polymer::zip_acceptance(bool zip_move, int side)
 
         }
     }    
-    std::vector<double> unzipped_probs(regrowth_lims.size()), zipped_probs(regrowth_lims.size());
+    std::vector<double> unzipped_probs(new_growth_lims.size()), zipped_probs(new_growth_lims.size());
 
     // in this block we get the rosenbluth weights that we need for the sections of interest
-    for (int i = 0; i < regrowth_lims.size(); i++)
+    for (int i = 0; i < new_growth_lims.size(); i++)
     {
         if (zip_move == 0) {
-            zipped_probs[i] = accepted_weights->subsection_probability(old_growth_lims[i]);
-            unzipped_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
+            zipped_probs[i] = old_weights->subsection_probability(old_growth_lims[i]);
+            unzipped_probs[i] = new_weights->subsection_probability(new_growth_lims[i]);
 
         }
         else {
-            zipped_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
-            unzipped_probs[i] = accepted_weights->subsection_probability(old_growth_lims[i]);
+            zipped_probs[i] = new_weights->subsection_probability(new_growth_lims[i]);
+            unzipped_probs[i] = old_weights->subsection_probability(old_growth_lims[i]);
 
         }
 
@@ -1141,8 +1278,8 @@ double polymer::zip_acceptance(bool zip_move, int side)
     // in this block we get the fixed endpoint probability factor if the limit of interest is between
     // 2 fixed endpoints.
     std::vector<int> limit(2);
-    for (int i{ 0 }; i < regrowth_lims.size(); i++) {
-        limit = regrowth_lims[i];
+    for (int i{ 0 }; i < new_growth_lims.size(); i++) {
+        limit = new_growth_lims[i];
         if (limit[0] != 0 && limit[1] != chain.size() - 1) {
             std::vector<double> temp1(3), temp2(3);
             temp1 = chain[limit[0]]->get_position();
@@ -1233,53 +1370,8 @@ double polymer::zip_acceptance(bool zip_move, int side)
 
 double polymer::swivel_acceptance()
 {
-    //std::vector<double> old_probs(regrowth_lims.size()), new_probs(regrowth_lims.size());
-    //for (int i{ 0 }; i < regrowth_lims.size(); i++) {
-    //    old_probs[i] = accepted_weights->subsection_probability(regrowth_lims[i]);
-    //    new_probs[i] = proposed_weights->subsection_probability(regrowth_lims[i]);
-    //}
-    //double old_config_prob{ product_of_elements(old_probs) }, new_config_prob{ product_of_elements(new_probs) };
-
-    //// if we have two sections which are between two fixed endpoints then we need to use the probability distribution (yamakawa).
-    //std::vector<int> limit(2);
-    //std::vector<double> temp1(3), temp2(3), temp(3);
-    //double r_e2e;
-    //for (int i = 0; i < regrowth_lims.size(); i++)
-    //{
-    //    limit = regrowth_lims[i];
-
-    //    if (abs(limit[1] - limit[0]) < 2) {
-    //        //old_config_prob *= 1 / 2 * pi;
-    //        //new_config_prob *= 1 / 2 * pi;
-
-    //        old_config_prob = old_config_prob / (8 * atan(1));
-
-    //        new_config_prob = new_config_prob / (8 * atan(1));
-
-
-    //    }
-    //    else {
-    //        if (limit[0] != 0 && limit[1] != chain.size() - 1)
-    //        {
-    //            temp1 = chain[limit[0]]->get_position();
-    //            temp2 = chain[limit[1]]->get_position();
-    //            temp = vector_subtraction(temp1, temp2);
-    //            r_e2e = vector_modulus(temp);
-    //            old_config_prob *= ideal_chain_pdf(r_e2e, abs(limit[1] - limit[0]));
-
-    //            temp1 = regrown_positions[limit[0]];
-    //            temp2 = regrown_positions[limit[1]];
-    //            temp = vector_subtraction(temp1, temp2);
-    //            r_e2e = vector_modulus(temp);
-    //            new_config_prob *= ideal_chain_pdf(r_e2e, abs(limit[1] - limit[0]));
-
-
-    //        }
-
-    //    }
-    //}
     double z{1};
-    for (auto i : regrowth_lims) {
+    for (auto i : new_growth_lims) {
         z = z * p_gen_ratio(i);
         if (std::isinf(z)) {
             std::cout << "caught" << std::endl;
@@ -1297,6 +1389,72 @@ double polymer::swivel_acceptance()
     }
     else { return z; }
 
+}
+
+double polymer::p_gen_configuration(bool forward_move)
+{
+    double P_gen{1};
+    std::vector<int> limit(2), regrown_indices(2);
+    std::vector<double> rA(3), rB(3), rAB(3);
+    double mod_rAB;
+
+    std::vector<std::vector<int>>* limits;
+    std::vector<std::vector<double>>* positions;
+    rosenbluth_growth* weights;
+
+    if (forward_move == true) {
+        weights = new_weights;
+        limits = &new_growth_lims;
+        positions = &new_config_positions;
+
+    }
+    else {
+        weights = old_weights;
+        limits = &old_growth_lims;
+        positions = &old_config_positions;
+
+    }
+    
+    for (auto i : *limits) {
+        limit = i;
+        if (limit[0] > limit[1]) {
+            std::reverse(limit.begin(), limit.end());
+        }
+        int A{ limit[0] }, B{ limit[1] };
+
+        if (abs(B - A) == 1) {
+            continue;
+        }
+
+        if (limit[0] != 0 && limit[1] != chain.size() - 1) {// for both ends fixed. relevant for swivel and link.
+            // will give the ratio of new to old
+            regrown_indices = { A + 1,B - 1 };// we don't take the weights of the endpoints
+
+            P_gen *= weights->subsection_probability(regrown_indices);// rosenbluth distribution probability for section considered.
+
+            int n_segments{ abs(B - A) };
+
+            rA = positions->operator[](A), rB = positions->operator[](B);
+            rAB = vector_subtraction(rA, rB);
+            mod_rAB = vector_modulus(rAB);
+
+            P_gen *= ideal_chain_pdf(mod_rAB, n_segments); // "yamakawa" probability
+
+        }
+        else { // random walk branch
+            if (A == 0) {
+                regrown_indices = { A,B - 1 };
+            }
+            else if (B == chain.size() - 1) {
+                regrown_indices = { A + 1,B };
+            }
+            P_gen *= weights->subsection_probability(regrown_indices);// rosenbluth distribution probability for section considered.
+        }
+
+    }
+
+
+    return P_gen;
 }
 
 double polymer::p_gen_ratio(std::vector<int> limit)// the ratio of p(new to old) / p(old to new) for the generation of new subsections.
@@ -1321,15 +1479,16 @@ double polymer::p_gen_ratio(std::vector<int> limit)// the ratio of p(new to old)
 
         int n_segments{ abs(B - A) };
         regrown_indices = { A + 1,B - 1 };// we don't take the weights of the endpoints
-        R_old = accepted_weights->subsection_probability(regrown_indices);
-        R_new = proposed_weights->subsection_probability(regrown_indices);
+        R_old = old_weights->subsection_probability(regrown_indices);// should calculate this differently in case R_new has a 0 weight in it.
+        // in that case there will be division by 0. 
+        R_new = new_weights->subsection_probability(regrown_indices);
 
-        if (R_new == 0) {
+        if (R_new == 0.0) {
             return 0.0;
         }
 
         std::vector<double> roA{ chain[A]->get_position() }, roB{ chain[B]->get_position() },
-            rnA{ regrown_positions[A] }, rnB{ regrown_positions[B] },
+            rnA{ new_config_positions[A] }, rnB{ new_config_positions[B] },
             roE2E{ vector_subtraction(roA,roB) }, rnE2E{ vector_subtraction(rnA,rnB) };
 
         double roAB{ vector_modulus(roE2E) }, rnAB{ vector_modulus(rnE2E) };
@@ -1344,8 +1503,8 @@ double polymer::p_gen_ratio(std::vector<int> limit)// the ratio of p(new to old)
         else if (B == chain.size() - 1) {
             regrown_indices = { A + 1,B };
         }
-        R_old = accepted_weights->subsection_probability(regrown_indices);
-        R_new = proposed_weights->subsection_probability(regrown_indices);
+        R_old = old_weights->subsection_probability(regrown_indices);
+        R_new = new_weights->subsection_probability(regrown_indices);
         if (R_new == 0) {
             return 0.0;
         }
@@ -1717,23 +1876,23 @@ void polymer::zip(bool& success, int &sigma, int &s_index) {
 
     // change the positions of the zipped monomers
     int kappa{ static_cast<int>(pow(-1,side)) };
-    regrown_positions[o_x - kappa] = new_pos[0];
-    regrown_positions[o_y + kappa] = new_pos[1];
+    new_config_positions[o_x - kappa] = new_pos[0];
+    new_config_positions[o_y + kappa] = new_pos[1];
 
 
     // have to add all the monomers in the helix back to the excluded volume. also have to calculate the interaction of the helix with
     // the ungrown (previous) sections.
     std::vector < std::vector<double>> helix_positions(2);
     for (auto i : small_helix) {
-        excluded_volume.push_back(chain[i]->get_position());
+        new_excluded_volume.push_back(chain[i]->get_position());
     }
     helix_positions[0] = new_pos[0];
     helix_positions[1] = new_pos[1];
 
     helix_excluded_volume_interaction(helix_positions);
 
-    excluded_volume.push_back(new_pos[0]);
-    excluded_volume.push_back(new_pos[1]);
+    new_excluded_volume.push_back(new_pos[0]);
+    new_excluded_volume.push_back(new_pos[1]);
 
     //extend_helix->extend(s_z);
 
@@ -1767,6 +1926,8 @@ void polymer::zip_update(int s_index, int side) {
     for (auto i : zip_unzip_structure) {
         chain[i]->change_structure(s_index + 1);
     }
+
+    accepted_weights = new_weights;
 
 }
 void polymer::unzip(bool &success, int &sigma, int &s_index) {
@@ -1829,6 +1990,8 @@ void polymer::unzip_update(int s_index, int side){
 
 
     update_positions();
+
+    accepted_weights = new_weights;
 
 }
 
@@ -1937,10 +2100,10 @@ void polymer::neighbouring_linkers()
     for (auto i{ 0 }; i < N; i++) {
         np[i] = chain[i]->get_position();
     }
-    regrown_positions = np;
+    new_config_positions = np;
 
-    std::vector<double> ws{ accepted_weights->get_weights() }, us{ accepted_weights->get_energies() };
-    proposed_weights->set_energies(us), proposed_weights->set_weights(ws);
+    //std::vector<double> ws{ old_weights->get_weights() }, us{ old_weights->get_energies() };
+    //new_weights->set_energies(us), new_weights->set_weights(ws);
 
     //std::cout << "neighbouring linkers called" << std::endl;
     std::vector<int> s(4);
@@ -2026,7 +2189,7 @@ void polymer::update_extensible_structures() {
 void polymer::update_excluded_volume(std::vector<std::vector<int>>& growth_limits, std::vector<int> helix)// use this function once we've calculated the growth limits
 //for a certain move. we update the excluded volume by adding all the monomers that will not be regrown to the excluded volume.
 {
-    excluded_volume.clear();
+    new_excluded_volume.clear();
     std::vector<int> indices(chain.size());
 
     // we make a vector of indices which counts upwards from 0 to chain size. we will then delete the elements corresponding to monomers which will be regrown
@@ -2063,31 +2226,42 @@ void polymer::update_excluded_volume(std::vector<std::vector<int>>& growth_limit
 
     }
 
+    // also, unless one of the growth limits is an endpoint (in which case it is not fixed) we should 
+    // include the limit extrema of our growth in the excluded volume since they are fixed
+    //for (auto i : growth_limits) {
+    //    for(auto j:i){
+    //        if(j != 0 && j != chain.size()-1){
+    //            indices[j] == j;
+    //        }
+    //    }
+    //}
+
     // finally we load the positions of the remaining monomers into the excluded volume 2d vector.
     std::vector<std::vector<double>> ev(indices.size() - 1);
     for (int j{ 0 }; j < indices.size() - 1; j++) {
 
         if (indices[j] != -1) {
-            ev[j] = regrown_positions[indices[j]];
+            ev[j] = new_config_positions[indices[j]];
 
             //ev[j] = chain[indices[j]]->get_position();
 
         }
     }
     ev.erase(std::remove_if(ev.begin(), ev.end(),[](const std::vector<double>& innerVec) {return innerVec.empty();}),ev.end());
-    excluded_volume = ev;
+    new_excluded_volume = ev;
+    old_excluded_volume = ev;
 }
 
 void polymer::helix_excluded_volume_interaction(std::vector<std::vector<double>>& helix_positions)
 {
     double energy{ 0 };
     // we want to take into account the excluded volume interaction of the helix with the monomers that are not being regrown.
-    if (excluded_volume.size() == 0) {
+    if (new_excluded_volume.size() == 0) {
         helix_interaction_weight = 1;
     }
     else {
         for (int i{ 0 }; i < helix_positions.size(); i++) {
-            energy = energy + u_r(helix_positions[i], excluded_volume);
+            energy = energy + u_r(helix_positions[i], new_excluded_volume);
         }
 
         helix_interaction_weight = exp(-energy);
@@ -2096,10 +2270,11 @@ void polymer::helix_excluded_volume_interaction(std::vector<std::vector<double>>
 }
 
 void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
-   
     std::vector<double> W_vals, U_vals;
     int m0, kappa;
     std::vector<int> limit(2);
+    int deletion_counter{0};
+
     for (size_t i = 0; i < limits.size(); i++)
     {
         
@@ -2110,7 +2285,8 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
         if (limit[0] == limit[1]) {
             std::cout << "growth limits were the same monomer" << std::endl;
 
-            limits.erase(limits.begin() + i);
+            limits.erase(limits.begin() + i-deletion_counter);
+            deletion_counter++;
             continue;
         }
         //print_1d_int_vec(limit);
@@ -2127,29 +2303,42 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
                 m0 = 1;
             }
             m0 = limit[m0];
-            //linker = random_walk(chain[m0]->get_position(), linker.size() - 1, excluded_volume);
-
-            //std::vector<double> o1{ chain[m0]->get_position() };
-            std::vector<double> o1{ regrown_positions[m0] };
+            std::vector<double> o1{ new_config_positions[m0] };
             
             if (rosenbluth_switch == true) {
-                linker = rosenbluth_random_walk(o1, linker.size() - 1, excluded_volume, U_vals, W_vals);
-                W_vals[0] = accepted_weights->get_Wi(limit[0]);
-                U_vals[0] = accepted_weights->get_Ui(limit[0]);
-                accepted_weights;
-                proposed_weights->modify_weights(limit, W_vals);
-                proposed_weights->modify_energies(limit, U_vals);
+                linker = rosenbluth_random_walk(o1, linker.size() - 1, new_excluded_volume, U_vals, W_vals);
+
+                // this is so that we don't include the fixed endpoint. 
+                std::vector<int> temp_lim{limit};
+                if (limit[0] == 0) {
+                    temp_lim[1] = limit[1] - 1;
+                }
+                if (limit[0] == chain.size() - 1) {
+                    temp_lim[1] = limit[1] + 1;
+                }
+                if (limit[1] == 0) {
+                    temp_lim[0] = limit[0] - 1;
+                }
+                if (limit[1] == chain.size() - 1) {
+                    temp_lim[0] = limit[0] + 1;
+                }
+
+                new_weights->modify_weights(temp_lim, W_vals);
+                new_weights->modify_energies(temp_lim, U_vals);
+
+                //new_weights->modify_weights(limit, W_vals);
+                //new_weights->modify_energies(limit, U_vals);
 
             }
             else if (rosenbluth_switch == false) {
-                linker = random_walk(o1, linker.size() - 1, excluded_volume);
+                linker = random_walk(o1, linker.size() - 1, new_excluded_volume);
                 W_vals.resize(linker.size());
                 U_vals.resize(linker.size());
 
                 std::fill(W_vals.begin(), W_vals.end(), 1.0);
                 std::fill(U_vals.begin(), U_vals.end(), 0.0);
-                proposed_weights->modify_weights(limit, W_vals);
-                proposed_weights->modify_energies(limit, U_vals);
+                new_weights->modify_weights(limit, W_vals);
+                new_weights->modify_energies(limit, U_vals);
 
             }
             //proposed_weights->modify_energies(limit, U_vals);
@@ -2158,7 +2347,7 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
             int m;
             for (int i{ 0 }; i < linker.size(); i++) {
                 m = m0 + kappa * i;
-                regrown_positions[m] = linker[i];
+                new_config_positions[m] = linker[i];
                 //chain[m]->change_position(linker[i]);
                 
             }
@@ -2166,42 +2355,52 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
         }
         else {// if neither of the limits are endpoints then we do fixed endpoints growth
             //std::vector<double> p1{ chain[limit[0]]->get_position() }, p2{ chain[limit[1]]->get_position() };
-            std::vector<double> p1{ regrown_positions[limit[0]] }, p2{ regrown_positions[limit[1]] };
+            std::vector<double> p1{ new_config_positions[limit[0]] }, p2{ new_config_positions[limit[1]] };
 
             if (rosenbluth_switch == true) {
-                linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, excluded_volume, U_vals, W_vals);
-                W_vals[0] = accepted_weights->get_Wi(limit[0]);
-                U_vals[0] = accepted_weights->get_Ui(limit[0]);
-                W_vals.back() = accepted_weights->get_Wi(limit[1]);
-                U_vals.back() = accepted_weights->get_Ui(limit[1]);
+                linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, new_excluded_volume, U_vals, W_vals);
 
-                accepted_weights;
-                proposed_weights->modify_weights(limit, W_vals);
-                proposed_weights->modify_energies(limit, U_vals);
+                // this is so that we don't include the fixed endpoint.
+                std::vector<int> temp_lim{limit};
+                if (alpha == 0) {
+                    temp_lim[0] += 1;
+                    temp_lim[1] -= 1;
+                }
+                else {
+                    temp_lim[0] -= 1;
+                    temp_lim[1] += 1;
+                }
+                new_weights->modify_weights(temp_lim, W_vals);
+                new_weights->modify_energies(temp_lim, U_vals);
+
 
 
 
             }
             else if (rosenbluth_switch == false) {
-                linker = grow_chain(p1, p2, linker.size() - 1, excluded_volume);
+                linker = grow_chain(p1, p2, linker.size() - 1, new_excluded_volume);
+
+                // when we don't have rosenbluth sampling, instead of modifying other parts of code greatly, we will just set all the 
+                // rosenbluth related factors to 1, that way they don't impact the result of the acceptance calculation (however with a 
+                // cleaner solution we would save computation time).
                 W_vals.resize(linker.size());
                 U_vals.resize(linker.size());
                 std::fill(W_vals.begin(), W_vals.end(), 1.0);
                 std::fill(U_vals.begin(), U_vals.end(), 0.0);
-                proposed_weights->modify_weights(limit, W_vals);
-                proposed_weights->modify_energies(limit, U_vals);
+                new_weights->modify_weights(limit, W_vals);
+                new_weights->modify_energies(limit, U_vals);
             }
             for (int i{ 0 }; i < linker.size(); i++) {
                 //chain[limit[0] + kappa * i]->change_position(linker[i]);
-                regrown_positions[limit[0] + kappa * i] = linker[i];
+                new_config_positions[limit[0] + kappa * i] = linker[i];
             }
 
         }
         //print_monomer_positions();
     }
-    regrowth_lims = limits;
+    new_growth_lims = limits;
     if (alpha == 1) {
-        for (auto i : regrowth_lims) {
+        for (auto i : new_growth_lims) {
             std::sort(i.begin(), i.end());
         }
     }
@@ -2209,17 +2408,330 @@ void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha) {
 
 }
 
-void polymer::update_positions() {
-    for (int i{ 0 }; i < chain.size(); i++) {
-        if (!regrown_positions[i].empty()) {
-            chain[i]->change_position(regrown_positions[i]);
+void polymer::grow_limits(std::vector<std::vector<int>>& limits, int alpha, bool forward_move)
+{
+    // forward_move  == true, we are growing limits for the new configuration
+    // forward_move  == false, we are growing limits for the old configuration
+    rosenbluth_growth* weight_object;
+    std::vector<std::vector<double>>* positions,* excluded_volume;
+    if (forward_move == true) {
+        weight_object = new_weights;
+        positions = &new_config_positions;
+        excluded_volume = &new_excluded_volume;
+        
+    }
+    else {
+        weight_object = old_weights;
+        positions = &old_config_positions;
+        excluded_volume = &old_excluded_volume;
+        //positions->operator[](4) = { 0,0,0 };
+    }
+
+
+    std::vector<double> W_vals, U_vals;
+    int m0, kappa;
+    std::vector<int> limit(2);
+    int deletion_counter{ 0 };
+
+    for (size_t i = 0; i < limits.size(); i++)
+    {
+
+        limit = limits[i];
+        //std::cout << "limit" << std::endl;
+        //print_1d_int_vec(limit);
+
+        if (limit[0] == limit[1]) {
+            std::cout << "growth limits were the same monomer" << std::endl;
+
+            limits.erase(limits.begin() + i - deletion_counter);
+            deletion_counter++;
+            continue;
+        }
+        //print_1d_int_vec(limit);
+        W_vals.clear();
+        U_vals.clear();
+        std::vector<std::vector<double>> linker(abs(limit[0] - limit[1]) + 1);
+        kappa = static_cast<int>(pow(-1.0, alpha));
+        m0 = 0;
+
+        //if one of the limits is an endpoint then we do random walk growth
+        if (limit[1 - alpha] == chain.size() - 1 || limit[alpha] == 0) {
+            if (limit[0] == chain.size() - 1 || limit[0] == 0) {
+                kappa = -kappa;
+                m0 = 1;
+            }
+            m0 = limit[m0];
+            std::vector<double> o1{ positions->operator[](m0) };
+
+            if (rosenbluth_switch == true) {
+                linker = rosenbluth_random_walk(o1, linker.size() - 1, *excluded_volume, U_vals, W_vals);
+
+                // this is so that we don't include the fixed endpoint. 
+                std::vector<int> temp_lim{ limit };
+                if (limit[0] == 0) {
+                    temp_lim[1] = limit[1] - 1;
+                }
+                if (limit[0] == chain.size() - 1) {
+                    temp_lim[1] = limit[1] + 1;
+                }
+                if (limit[1] == 0) {
+                    temp_lim[0] = limit[0] - 1;
+                }
+                if (limit[1] == chain.size() - 1) {
+                    temp_lim[0] = limit[0] + 1;
+                }
+
+                weight_object->modify_weights(temp_lim, W_vals);
+                weight_object->modify_energies(temp_lim, U_vals);
+
+                //new_weights->modify_weights(limit, W_vals);
+                //new_weights->modify_energies(limit, U_vals);
+
+            }
+            else if (rosenbluth_switch == false) {
+                linker = random_walk(o1, linker.size() - 1, *excluded_volume);
+                W_vals.resize(linker.size());
+                U_vals.resize(linker.size());
+
+                std::fill(W_vals.begin(), W_vals.end(), 1.0);
+                std::fill(U_vals.begin(), U_vals.end(), 0.0);
+                weight_object->modify_weights(limit, W_vals);
+                weight_object->modify_energies(limit, U_vals);
+
+            }
+            //proposed_weights->modify_energies(limit, U_vals);
+
+
+            int m;
+            for (int i{ 0 }; i < linker.size(); i++) {
+                m = m0 + kappa * i;
+                positions->operator[](m) = linker[i];
+                //chain[m]->change_position(linker[i]);
+
+            }
+
+        }
+        else {// if neither of the limits are endpoints then we do fixed endpoints growth
+            //std::vector<double> p1{ chain[limit[0]]->get_position() }, p2{ chain[limit[1]]->get_position() };
+            std::vector<double> p1{ positions->operator[](limit[0])}, p2{ positions->operator[](limit[1])};
+
+            if (rosenbluth_switch == true) {
+                linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, *excluded_volume, U_vals, W_vals);
+
+                // this is so that we don't include the fixed endpoint.
+                std::vector<int> temp_lim{ limit };
+                if (alpha == 0) {
+                    temp_lim[0] += 1;
+                    temp_lim[1] -= 1;
+                }
+                else {
+                    temp_lim[0] -= 1;
+                    temp_lim[1] += 1;
+                }
+                weight_object->modify_weights(temp_lim, W_vals);
+                weight_object->modify_energies(temp_lim, U_vals);
+
+
+
+
+            }
+            else if (rosenbluth_switch == false) {
+                linker = grow_chain(p1, p2, linker.size() - 1, *excluded_volume);
+
+                // when we don't have rosenbluth sampling, instead of modifying other parts of code greatly, we will just set all the 
+                // rosenbluth related factors to 1, that way they don't impact the result of the acceptance calculation (however with a 
+                // cleaner solution we would save computation time).
+                W_vals.resize(linker.size());
+                U_vals.resize(linker.size());
+                std::fill(W_vals.begin(), W_vals.end(), 1.0);
+                std::fill(U_vals.begin(), U_vals.end(), 0.0);
+                weight_object->modify_weights(limit, W_vals);
+                weight_object->modify_energies(limit, U_vals);
+            }
+            for (int i{ 0 }; i < linker.size(); i++) {
+                //chain[limit[0] + kappa * i]->change_position(linker[i]);
+                positions->operator[](limit[0] + kappa * i) = linker[i];
+            }
+
+        }
+        //print_monomer_positions();
+    }
+
+    // sometimes we get limits which don't make much sense like [45,45] or limits which don't require new growth like [43,44]. 
+    // instead of compensating for that in the growth_limits() functions e.g link_growth_limits() or in the move functions e.g link()
+    // we do it here. it's a choice, not sure if the best one or not.
+    if (forward_move == true) {
+        new_growth_lims = limits;
+        if (alpha == 1) {
+            for (auto i : new_growth_lims) {
+                std::sort(i.begin(), i.end());
+            }
         }
     }
-    //std::vector<std::vector<double>> pos(N);
-    //regrown_positions = pos;
-    std::vector<double> ws{ proposed_weights->get_weights() }, us{proposed_weights->get_energies()};
-    accepted_weights->set_energies(us), accepted_weights->set_weights(ws);
+    else if (forward_move == false) {
+        old_growth_lims = limits;
+        if (alpha == 1) {
+            for (auto i : old_growth_lims) {
+                std::sort(i.begin(), i.end());
+            }
+        }
+
+    }
+
+
+}
+
+void polymer::old_config_grow_limits(std::vector<std::vector<int>>& limits, int alpha)
+{
+    std::vector<double> W_vals, U_vals;
+    int m0, kappa;
+    std::vector<int> limit(2);
+    int deletion_counter{ 0 };
+
+    for (size_t i = 0; i < limits.size(); i++)
+    {
+
+        limit = limits[i];
+        //std::cout << "limit" << std::endl;
+        //print_1d_int_vec(limit);
+
+        if (limit[0] == limit[1]) {
+            std::cout << "growth limits were the same monomer" << std::endl;
+
+            limits.erase(limits.begin() + i - deletion_counter);
+            deletion_counter++;
+            continue;
+        }
+        //print_1d_int_vec(limit);
+        W_vals.clear();
+        U_vals.clear();
+        std::vector<std::vector<double>> linker(abs(limit[0] - limit[1]) + 1);
+        kappa = static_cast<int>(pow(-1.0, alpha));
+        m0 = 0;
+
+        //if one of the limits is an endpoint then we do random walk growth
+        if (limit[1 - alpha] == chain.size() - 1 || limit[alpha] == 0) {
+            if (limit[0] == chain.size() - 1 || limit[0] == 0) {
+                kappa = -kappa;
+                m0 = 1;
+            }
+            m0 = limit[m0];
+            std::vector<double> o1{ new_config_positions[m0] };
+
+            if (rosenbluth_switch == true) {
+                linker = rosenbluth_random_walk(o1, linker.size() - 1, new_excluded_volume, U_vals, W_vals);
+
+                // this is so that we don't include the fixed endpoint.
+                std::vector<int> temp_lim{ limit };
+                if (limit[0] == 0) {
+                    temp_lim[1] = limit[1] - 1;
+                }
+                if (limit[0] == chain.size() - 1) {
+                    temp_lim[1] = limit[1] + 1;
+                }
+                if (limit[1] == 0) {
+                    temp_lim[0] = limit[0] - 1;
+                }
+                if (limit[1] == chain.size() - 1) {
+                    temp_lim[0] = limit[0] + 1;
+                }
+
+                new_weights->modify_weights(temp_lim, W_vals);
+                new_weights->modify_energies(temp_lim, U_vals);
+
+                //new_weights->modify_weights(limit, W_vals);
+                //new_weights->modify_energies(limit, U_vals);
+
+            }
+            else if (rosenbluth_switch == false) {
+                linker = random_walk(o1, linker.size() - 1, new_excluded_volume);
+                W_vals.resize(linker.size());
+                U_vals.resize(linker.size());
+
+                std::fill(W_vals.begin(), W_vals.end(), 1.0);
+                std::fill(U_vals.begin(), U_vals.end(), 0.0);
+                new_weights->modify_weights(limit, W_vals);
+                new_weights->modify_energies(limit, U_vals);
+
+            }
+            //proposed_weights->modify_energies(limit, U_vals);
+
+
+            int m;
+            for (int i{ 0 }; i < linker.size(); i++) {
+                m = m0 + kappa * i;
+                new_config_positions[m] = linker[i];
+                //chain[m]->change_position(linker[i]);
+
+            }
+
+        }
+        else {// if neither of the limits are endpoints then we do fixed endpoints growth
+            //std::vector<double> p1{ chain[limit[0]]->get_position() }, p2{ chain[limit[1]]->get_position() };
+            std::vector<double> p1{ new_config_positions[limit[0]] }, p2{ new_config_positions[limit[1]] };
+
+            if (rosenbluth_switch == true) {
+                linker = rosenbluth_grow_chain(p1, p2, linker.size() - 1, new_excluded_volume, U_vals, W_vals);
+
+                // this is so that we don't include the fixed endpoint.
+                std::vector<int> temp_lim{ limit };
+                if (alpha == 0) {
+                    temp_lim[0] += 1;
+                    temp_lim[1] -= 1;
+                }
+                else {
+                    temp_lim[0] -= 1;
+                    temp_lim[1] += 1;
+                }
+                new_weights->modify_weights(temp_lim, W_vals);
+                new_weights->modify_energies(temp_lim, U_vals);
+
+
+
+
+            }
+            else if (rosenbluth_switch == false) {
+                linker = grow_chain(p1, p2, linker.size() - 1, new_excluded_volume);
+
+                // when we don't have rosenbluth sampling, instead of modifying other parts of code greatly, we will just set all the 
+                // rosenbluth related factors to 1, that way they don't impact the result of the acceptance calculation (however with a 
+                // cleaner solution we would save computation time).
+                W_vals.resize(linker.size());
+                U_vals.resize(linker.size());
+                std::fill(W_vals.begin(), W_vals.end(), 1.0);
+                std::fill(U_vals.begin(), U_vals.end(), 0.0);
+                new_weights->modify_weights(limit, W_vals);
+                new_weights->modify_energies(limit, U_vals);
+            }
+            for (int i{ 0 }; i < linker.size(); i++) {
+                //chain[limit[0] + kappa * i]->change_position(linker[i]);
+                new_config_positions[limit[0] + kappa * i] = linker[i];
+            }
+
+        }
+        //print_monomer_positions();
+    }
+
+}
+
+
+
+void polymer::update_positions() {
+    for (int i{ 0 }; i < chain.size(); i++) {
+        if (!new_config_positions[i].empty()) {
+            chain[i]->change_position(new_config_positions[i]);
+        }
+    }
+    old_config_positions = new_config_positions;
     return;
+}
+void polymer::reset_weights()
+{
+    std::vector<double> ws{ accepted_weights->get_weights() }, us{ accepted_weights->get_energies() };
+    new_weights->set_energies(us), new_weights->set_weights(ws);
+    old_weights->set_energies(us), old_weights->set_weights(ws);
+
+
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2276,18 +2788,6 @@ void polymer::swivel(bool success) {
             normalize(v_new);
             double_helix->change_v(v_new);
 
-            //std::cout << "v theory 1 " << std::endl;
-            //print_1d_doub_vec(v_new);
-            //std::cout << "further tests" << std::endl;
-            //int beta{ double_helix->get_beta() }, alpha{ double_helix->get_alpha() };
-            //std::cout << "alpha beta " << alpha << " " << beta << std::endl;
-            //std::vector<int> s{ double_helix->get_monomers() };
-            //std::vector<double> temp(3);
-            //for (auto i : s) {
-            //    temp = chain[i]->get_position();
-            //    print_1d_doub_vec(temp);
-            //}
-            
             //update positions
             update_positions();
 
@@ -2549,7 +3049,7 @@ void polymer::spin(helix_struct* dh, double angle, std::vector<double>& rotation
     for (int i{ 0 }; i < s.size();i++) {
         temp = chain[s[i]]->get_position();
         rotated_positions[i] = rotate_by_angle_about_general_axis(temp, rot_axis, angle, com);
-        regrown_positions[s[i]] = rotated_positions[i];
+        new_config_positions[s[i]] = rotated_positions[i];
     }
 
     // should test that with our calculated v we do indeed generate the desired helix.
@@ -2560,19 +3060,19 @@ void polymer::spin(helix_struct* dh, double angle, std::vector<double>& rotation
     pack_region(s);
     std::vector<double> temp1(1), temp2(3);
     if (beta == 0) {
-        temp1 = regrown_positions[s[0]];
-        temp2 = regrown_positions[s[3]];
+        temp1 = new_config_positions[s[0]];
+        temp2 = new_config_positions[s[3]];
 
-        temp1 = regrown_positions[s[1]];
-        temp2 = regrown_positions[s[2]];
+        temp1 = new_config_positions[s[1]];
+        temp2 = new_config_positions[s[2]];
 
     }
     else if (beta == 1) {
-        temp1 = regrown_positions[s[0]];
-        temp2 = regrown_positions[s[3]];
+        temp1 = new_config_positions[s[0]];
+        temp2 = new_config_positions[s[3]];
 
-        temp1 = regrown_positions[s[1]];
-        temp2 = regrown_positions[s[2]];
+        temp1 = new_config_positions[s[1]];
+        temp2 = new_config_positions[s[2]];
 
     }
     //std::cout << "v theory 0" << std::endl;
@@ -2675,7 +3175,7 @@ void polymer::corkscrew(helix_struct* dh, double angle) {
     p1 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
     p2 = rotate_by_angle_about_general_axis(p2, v, angle, running_centre);
 
-    regrown_positions[m1] = p1, regrown_positions[m2] = p2;
+    new_config_positions[m1] = p1, new_config_positions[m2] = p2;
     //chain[m1]->change_position(p1), chain[m2]->change_position(p2);
     for (int i = 1; i < n; i++)
     {
@@ -2690,7 +3190,7 @@ void polymer::corkscrew(helix_struct* dh, double angle) {
         p1 = rotate_by_angle_about_general_axis(p1, v, angle, running_centre);
         p2 = rotate_by_angle_about_general_axis(p2, v, angle, running_centre);
 
-        regrown_positions[m1] = p1, regrown_positions[m2] = p2;
+        new_config_positions[m1] = p1, new_config_positions[m2] = p2;
         //chain[m1]->change_position(p1), chain[m2]->change_position(p2);
 
 
@@ -2786,7 +3286,7 @@ void polymer::translate(helix_struct* dh, std::vector<double> t) {
     std::vector<double> temp(3);
     for (auto i : s) {
         temp = chain[i]->get_position();
-        regrown_positions[i] = vector_addition(temp, t);
+        new_config_positions[i] = vector_addition(temp, t);
     }
     std::vector<std::vector<int>> growth_limits;
     swivel_growth_limits(dh, growth_limits);

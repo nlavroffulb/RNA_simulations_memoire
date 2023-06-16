@@ -4,7 +4,6 @@
 #include <fstream>
 #include<string>
 #include<iostream>
-//double factorial_overflow(int n, int k);
 
 void sample_jump_direction(std::vector<double> &jump, double bond_distance);
 std::vector<double> crankshaft_insertion(std::vector<double> &initial, std::vector<double> &N_position);

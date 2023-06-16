@@ -100,9 +100,9 @@ int main()
     
     polymer p0(70);
     double u1, u2, u3;
-    int NMC{ 1000 },i{0};
+    int NMC{ 100 },i{0};
 
-    link_unlink_hairpin_sim(NMC, 50, false);
+    link_unlink_hairpin_sim(NMC, 50, true);
 
 
 

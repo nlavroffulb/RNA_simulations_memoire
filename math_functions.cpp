@@ -53,24 +53,39 @@ double dist_2_points3d(std::vector<double> &v1, std::vector<double> &v2)
     return sqrt(pow(v1[0]-v2[0],2)+ pow(v1[1] - v2[1], 2) + pow(v1[2] - v2[2], 2));
 }
 std::vector<double> cross_product(std::vector<double> &a, std::vector<double> &b) {
-    return { a[1] * b[2] - a[2] * b[1],a[2] * b[0] - a[0] * b[2],a[0] * b[1] - a[1] * b[0] };
+    std::vector<double> result(3);
+
+    result[0] = a[1] * b[2] - a[2] * b[1];
+    result[1] = a[2] * b[0] - a[0] * b[2];
+    result[2] = a[0] * b[1] - a[1] * b[0];
+    return result;
+    //return { a[1] * b[2] - a[2] * b[1],a[2] * b[0] - a[0] * b[2],a[0] * b[1] - a[1] * b[0] };
 }
 
 // probably more efficient way to do it.
 std::vector<double> sample_unit_perp_vector(std::vector<double> u) {
-    double mod{2.0}, cos{2.0};
-    while(mod>1 or cos>0.99){
-        std::vector<double> axis{ rand2(0,1),rand2(0,1),rand2(0,1) };
-        mod=vector_modulus(axis);
-        axis=normalize(axis);
-        u=normalize(u);
-        cos=dot_product(axis,u);
-    }
+    std::vector<double> axis(3);
+    double phi{ rand2(0,2 * pi) }, theta{ acos(1 - 2 * rand2(0,1)) };//correct sampling of cos theta using 
+    //inverse transform sampling
+
+    axis = {  sin(theta) * cos(phi),sin(theta) * sin(phi),cos(theta) };
+    //std::cout << vector_modulus(axis) << " " << vector_modulus(u) << std::endl;
     std::vector<double> v{ cross_product(axis,u) };
-    return normalize(v);
+    //std::cout << vector_modulus(v) << std::endl;
+
+    for (auto i : v) {
+        if (std::isnan(i)) {
+            v = sample_unit_perp_vector(u);
+            return v;
+        }
+    }
+
+    normalize(v);
+    //std::cout << vector_modulus(v) << std::endl;
+
+    return v;
 }
 
-#include <cmath>
 
 // Rotate a point or vector by an angle theta about an axis u.
 //chatGPT.
@@ -133,8 +148,8 @@ double factorial(int n) {
 double choose(int n, int  k) {
     if (k == 0) return 1;
     return (n * choose(n - 1, k - 1)) / k;
-}
 
+}
 double sum_of_elements(std::vector<double> v)
 {
     double sum{0};

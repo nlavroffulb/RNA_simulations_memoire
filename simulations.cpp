@@ -22,6 +22,9 @@ void link_unlink_hairpin_sim(int NMC, int N_monomers, bool rosenbluth)
         u2 = rand2(0, 1);
         u3 = rand2(0, 1);
 
+        p0.neighbouring_linkers();
+        p0.reset_weights();
+
         //LINK BRANCH
         if (u1 <= 0.5) {
             int alpha, beta, struct_index;

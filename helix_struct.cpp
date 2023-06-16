@@ -1,13 +1,5 @@
 #include "helix_struct.h"
 
-//helix_struct::helix_struct(int o,std::vector<double> &u_vec, std::vector<double> &v_vec, std::vector<int> &structure, int growth_direction) {
-//	origin = o;
-//	u = u_vec;
-//	v = v_vec;
-//	monomer_indices = structure;
-//	alpha = growth_direction;
-//	//std::cout << std::endl;
-//}
 
 helix_struct::helix_struct(std::vector<int> monomers, std::vector<double>& v_vec, std::vector < std::vector<double>> r_centres, int a, int b) {
 	monomer_indices = monomers;
@@ -18,15 +10,6 @@ helix_struct::helix_struct(std::vector<int> monomers, std::vector<double>& v_vec
 	running_centres = r_centres;
 
 }
-//helix_struct::helix_struct(std::vector<int>& monomers, std::vector<double>& v_vec, int a, int b) {
-//	monomer_indices = monomers;
-//	v = v_vec;
-//	alpha = a;
-//	beta = b;
-//	std::vector<std::vector<double>> rcs(2);
-//	running_centres = rcs;
-//
-//}
 std::vector<double> helix_struct::get_u() {
 	return u;
 }
