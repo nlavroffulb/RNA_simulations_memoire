@@ -5,9 +5,10 @@
 
 class rosenbluth_growth {
 private:
-	int l; // length of the section = number of monomers
-	bool random_walk;//if random walk is true that means the section was grown 
-	//with only one fixed point else it was grown between two fixed points
+
+	//wicks chandler parameters
+
+
 	std::vector<double> weights;
 	std::vector<double> energies;
 	//std::vector<int> monomer_limits;
@@ -16,6 +17,7 @@ private:
 
 public:
 
+	rosenbluth_growth(int length);
 	rosenbluth_growth() = default;
 	rosenbluth_growth(std::vector<double>& weight_vals, std::vector<double>& U_values);
 	~rosenbluth_growth();
@@ -29,7 +31,6 @@ public:
 	void set_energies(std::vector<double> energy_vals);
 	std::vector<double> get_weights();
 	void set_weights(std::vector<double> weight_vals);
-	bool get_growth_method();
 
 	double subsection_weight(std::vector<int> limit);
 	double subsection_energy(std::vector<int> limit);
@@ -48,19 +49,19 @@ double u_r(std::vector<double> r, std::vector<std::vector<double>> positions_ij)
 
 // select position for monomer from k trial positions
 std::vector<double> select_trial(std::vector<std::vector<double>>& trial_positions,
-	std::vector<std::vector<double>>& existing_positions, double& weight, double& energy);
+	std::vector<std::vector<double>>& existing_positions, double& weight, double& energy, int* selection_index=nullptr);
 
 // overall probability of generating a set of monomers
 double configuration_probability(std::vector<double>& energies, std::vector<double>& weights);
 
-void rosenbluth_sample_helix(int n, std::vector<double>& origin, std::vector<double>& u, std::vector<double>& v, std::vector<std::vector<double>>& excluded_volume_positions, double &rosenbluth_factor);
+void rosenbluth_sample_helix(int n, std::vector<double>& origin, std::vector<double>& u, std::vector<double>& v, std::vector<std::vector<double>>& excluded_volume_positions, double& rosenbluth_factor, std::vector<std::vector<double>> existing_helix = {});
 
 // hasn't been implemented.
 std::vector<std::vector<double>> select_helix(std::vector<std::vector<std::vector<double>>>& trial_helices,
 	std::vector<std::vector<double>>& excluded_volume);
 
 
-double rosenbluth_factor(std::vector<double> weights, int k);
+double rosenbluth_factor(std::vector<double>& weights, int k);
 
 // very imporatnt growth functions. these are called many times to generate segments of teh chain according to a fixed
 // end to end growth scheme or simply a random walk growth scheme. both use rosenbluth sampling.

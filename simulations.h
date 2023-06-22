@@ -1,14 +1,18 @@
 #pragma once
+#include "polymer_class.h"
 
-// we will write different versions of metropolis hastings for different situations
 
-void link_unlink_hairpin_sim(int NMC, int N_monomers, bool rosenbluth);
+void hairpin_sim(int NMC, int N_monomers, bool rosenbluth);
 
-void hairpin_sim_varying_length(int NMC, int N_monomers, bool rosenbluth);
+void determine_g0(polymer* p0, int NMC);
 
-void hairpin_sim_vary_WC_pot(int NMC, int N_monomers, bool rosenbluth);
+void linker_weight_sim(polymer* p0, int NMC);
 
-void covid_simulation(int NMC);
+void varying_helix_length_sim(polymer* p0, int NMC);
 
-void kissing_hairpin_simulation(int NMC);
+
+
+
+//void hairpin_sim_vary_WC_pot(int NMC, int N_monomers, bool rosenbluth);
+
 
