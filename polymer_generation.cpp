@@ -57,6 +57,9 @@ void sample_jump_direction(std::vector<double> &jump, double length) {
 
 std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<double> &N_position, int segments_to_regrow) {
 
+	if (dist_2_points3d(N_position, initial) > segments_to_regrow+1) {
+		std::cout << "stop" << std::endl;
+	}
 	if (segments_to_regrow > 1) {
 		//pdf max
 		std::vector<double> temp{ vector_subtraction(N_position,initial) };
@@ -76,7 +79,7 @@ std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<d
 
 		//while (overstretch(segments_to_regrow-1, trial_e2e) == true || Y > segment_grow_prob(trial_e2e, init_e2e, segments_to_regrow)|| (abs(segments_to_regrow-1-trial_e2e)<0.1 && segments_to_regrow>3)) {
 			//std::cout << "rejected" << std::endl;
-		while (overstretch(segments_to_regrow - 1, trial_e2e) == true || Y > unnorm_segment_grow_prob(trial_e2e, segments_to_regrow)) {
+		while (overstretch(segments_to_regrow, trial_e2e) == true || Y > unnorm_segment_grow_prob(trial_e2e, segments_to_regrow)) {
 
 			Y = rand2(0, pdf_max);
 
@@ -87,7 +90,7 @@ std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<d
 			temp = vector_subtraction(N_position, trial_position);
 			trial_e2e = vector_modulus(temp);
 			over_count++;
-			if (over_count > 1000000) {
+			if (over_count == 1000000) {
 				over_count++;
 				std::cout << "stuck" << std::endl;
 				if (segments_to_regrow - 1 > trial_e2e) {
@@ -99,6 +102,10 @@ std::vector<double> rejection_sample(std::vector<double> &initial, std::vector<d
 			over_count++;
 			std::cout << "ESCAPE AFTER STUCK" << std::endl;
 		}
+		if (dist_2_points3d(N_position, trial_position) > segments_to_regrow) {
+			std::cout << "stop" << std::endl;
+		}
+
 		return trial_position;
 
 	}
@@ -131,7 +138,11 @@ std::vector<double> crankshaft_insertion(std::vector<double> &start_pos, std::ve
 	std::vector<double> r_Nminus1{ vector_addition(r_e2e,v_c) };
 
 	r_Nminus1 = vector_addition(start_pos, r_Nminus1);
-
+	for (auto i : r_Nminus1) {
+		if (isnan(i)) {
+			std::cout << "stop" << std::endl;
+		}
+	}
 	return r_Nminus1;
 };
 

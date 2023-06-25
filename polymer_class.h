@@ -25,12 +25,17 @@ protected:
 
     // data for acceptance probability calculation.
     std::vector<std::vector<int>> new_growth_lims, old_growth_lims;
-    std::vector<std::vector < double >> new_config_positions, old_config_positions;
+    std::vector<std::vector < double >> new_config_positions;
+
     rosenbluth_growth *old_weights;
     rosenbluth_growth* new_weights;
+
+    // important for link_unlink
     double helix_R_factor;
     helix_struct* proposed_link_helix;
 
+    // important for swivel
+    double old_helix_weight, new_helix_weight;
     std::vector<double> new_running_centre;
     std::vector<int> zip_unzip_structure;
 
@@ -38,6 +43,12 @@ protected:
     
 
     bool rosenbluth_switch{true};// 1 equals on, 0 equals off.
+
+    std::vector<double> linker_weights;
+    std::vector<double> helix_weights;
+    std::vector<double> dangling_weights;
+
+    double link_acceptance_prefactor;
 
 private:
     int N{ 0 };
@@ -70,10 +81,11 @@ public:
     // at different moments in the simulation we have to update different member variables or other quantities
     //usually based on whether a move is accepted or rejected. we also need to search for a compatible regions.
     std::vector<std::vector<int>> structure_search(int n=3);
-    void set_search_results(int n);
     void update_large_struct_list();
     void update_extensible_structures();
     void update_positions();
+    void reset_positions();
+    void neighbouring_linkers(std::vector<int> linked_monomers);
     void neighbouring_linkers();
     void update_excluded_volume(std::vector<std::vector<int>>& growth_limits, std::vector<int> helix = {});
     void get_linked_monomers(std::vector<int>& links);
@@ -128,22 +140,36 @@ public:
     void grow_limits(std::vector<std::vector<int>>& limits, int alpha, bool forward_move);
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     // swivel specific functions
-    void swivel(bool success);
-    bool reject_spin(helix_struct* double_helix, double angle);
+    bool reject_spin(helix_struct* double_helix, double angle, std::vector<double> rot_axis);
     bool reject_corkscrew(helix_struct* double_helix, double angle);
     bool reject_translate(helix_struct* double_helix, std::vector<double> &translation);
-    void spin(helix_struct* dh, double angle, std::vector<double>&rot_axis);
-    void corkscrew(helix_struct* dh, double angle);
-    void translate(helix_struct* dh, std::vector<double> t);
     void swivel_growth_limits(helix_struct* dh, std::vector<std::vector<int>>& limits);
     std::vector<double> centre_of_mass(std::vector<int> structure);
     void corkscrew_update(helix_struct* dh);
     void spin_update(helix_struct* dh, std::vector<double>& rot_axis, double angle);
     void translate_update(helix_struct* dh, std::vector<double>&translation);
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    std::vector<std::vector<double>> get_helix_monomer_positions(std::vector<int>& momonomers);
+
+    void translate_move(helix_struct* dh);
+    void corkscrew_move(helix_struct* dh);
+    void spin_move(helix_struct* dh);
+    void swivel_move();
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     double configuration_energy();
-
+    void add_linker_weight(bool link_move);
+    double get_hairpin_weight();
+    double get_helix_weight();
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    void link_move();
+    void unlink_move();
+    void force_unbound_state();
+    void set_link_acceptance_prefactor(double prefactor, double multiplier=-1);
+    double get_link_acceptance_prefactor();
+    
+    void set_search_results(std::vector<int> helix);
+    int get_num_monomers();
+    int get_num_helices();
 };
 
