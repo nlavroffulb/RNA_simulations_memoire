@@ -50,7 +50,7 @@ void helix_struct::shorten(std::vector<int>& x10sion) {
 
 
 bool helix_struct::extended() {
-	if (abs(monomer_indices[1] - monomer_indices[0]) + 1 ==standard_struct_size) {
+	if (std::abs(monomer_indices[1] - monomer_indices[0]) + 1 ==standard_struct_size) {
 		return false;
 	}
 	else {

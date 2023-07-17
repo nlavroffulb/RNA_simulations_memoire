@@ -29,9 +29,15 @@ std::vector<double> sample_unit_perp_vector(std::vector<double> u);
 double factorial(int n);
 double choose(int n, int  k);
 double sum_of_elements(std::vector<double> v);
+int sum_of_elements(std::vector<int> v);
+std::vector<double> generate_linear_array(double min, double max, int numBins);
+
 double product_of_elements(std::vector < double> &v);
 double average_of_elements(std::vector<double>& v);
 void print_1d_int_vec(std::vector<int> vec);
 void print_1d_doub_vec(std::vector<double> vec);
 void print_2d_int_vec(std::vector<std::vector<int>> vec);
 void print_2d_doub_vec(std::vector<std::vector<double>> vec);
+void double_vector_to_txt(const std::string& filename, const std::vector<double>& vector);
+void int_vector_to_txt(const std::string& filename, const std::vector<int>& vector);
+

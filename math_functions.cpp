@@ -1,4 +1,5 @@
 #include "math_functions.h"
+#include <fstream>
 //#include "polymer_generation.h"
 
 
@@ -12,7 +13,7 @@ std::vector<double> vector_subtraction(std::vector<double> &vector1, std::vector
 }
 
 double vector_modulus(std::vector<double> &vector1) {
-    return sqrt(pow(abs(vector1[0]), 2) + pow(abs(vector1[1]), 2) + pow(abs(vector1[2]), 2));
+    return sqrt(std::pow(std::abs(vector1[0]), 2) + std::pow(std::abs(vector1[1]), 2) + std::pow(std::abs(vector1[2]), 2));
 }
 
 double dot_product(std::vector<double> &vector1, std::vector<double> &vector2) {
@@ -50,7 +51,7 @@ std::vector<double> multiplication_by_scalar(double constant, std::vector<double
 }
 double dist_2_points3d(std::vector<double> &v1, std::vector<double> &v2)
 {
-    return sqrt(pow(v1[0]-v2[0],2)+ pow(v1[1] - v2[1], 2) + pow(v1[2] - v2[2], 2));
+    return sqrt(std::pow(v1[0]-v2[0],2)+ std::pow(v1[1] - v2[1], 2) + std::pow(v1[2] - v2[2], 2));
 }
 std::vector<double> cross_product(std::vector<double> &a, std::vector<double> &b) {
     std::vector<double> result(3);
@@ -157,6 +158,14 @@ double sum_of_elements(std::vector<double> v)
         sum += n;
     return sum;
 }
+int sum_of_elements(std::vector<int> v)
+{
+    int sum{ 0 };
+    for (auto& n : v)
+        sum += n;
+    return sum;
+}
+
 
 double product_of_elements(std::vector<double>& v) {
     double prod{ 1 };
@@ -173,6 +182,18 @@ double average_of_elements(std::vector<double>& v)
         sum += i;
     }
     return sum / static_cast<double>(v.size());
+}
+
+std::vector<double> generate_linear_array(double min, double max, int numBins) {
+    std::vector<double> linearArray;
+    double step = (max - min) / (numBins - 1);
+
+    for (int i = 0; i < numBins; ++i) {
+        double value = min + (step * i);
+        linearArray.push_back(value);
+    }
+
+    return linearArray;
 }
 //**************************************************************************************////**************************************************************************************//
 //**************************************************************************************////**************************************************************************************//
@@ -191,7 +212,7 @@ double factorial2(int n) {
     else {
         double summand{ 1 };
         for (int i = 1; i <= n; ++i)
-            summand *= i * pow(10, -300);
+            summand *= i * std::pow(10, -300);
         summand = summand;
         int p{ 300 };
         return summand;
@@ -340,6 +361,36 @@ void print_2d_doub_vec(std::vector<std::vector<double>> vec)
     }std::cout << std::endl;
 
 }
+
+void double_vector_to_txt(const std::string& filename, const std::vector<double>& vector) {
+    std::ofstream file(filename);
+    if (file.is_open()) {
+        for (const double& element : vector) {
+            file << element << "\n";
+        }
+        file.close();
+        std::cout << "Vector copied to file successfully." << std::endl;
+    }
+    else {
+        std::cout << "Unable to open file: " << filename << std::endl;
+    }
+}
+
+void int_vector_to_txt(const std::string& filename, const std::vector<int>& vector) {
+    std::ofstream file(filename);
+    if (file.is_open()) {
+        for (const int& element : vector) {
+            file << element << "\n";
+        }
+        file.close();
+        std::cout << "Vector copied to file successfully." << std::endl;
+    }
+    else {
+        std::cout << "Unable to open file: " << filename << std::endl;
+    }
+}
+
+
 ///////////**********************************************************************//////////////////////
 ///////////**********************************************************************//////////////////////
 ///////////**********************************************************************//////////////////////

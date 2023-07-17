@@ -44,9 +44,11 @@ protected:
 
     bool rosenbluth_switch{true};// 1 equals on, 0 equals off.
 
+    // data for analysis
     std::vector<double> linker_weights;
     std::vector<double> helix_weights;
     std::vector<double> dangling_weights;
+    double old_config_weight, new_config_weight;
 
     double link_acceptance_prefactor;
 
@@ -76,7 +78,7 @@ public:
     std::vector<std::vector<double>> get_subpositions(std::vector<int> limit);
     //operator overload function. allows us to write chain[i] as a reference to a monomer object.
     monomer* operator[](int i);
-
+    int get_chain_length();
     ////////////////////////////////////////////////////////////////////////////////////////
     // at different moments in the simulation we have to update different member variables or other quantities
     //usually based on whether a move is accepted or rejected. we also need to search for a compatible regions.
@@ -105,6 +107,8 @@ public:
     void link(std::vector<int>& link_region, int alpha, int beta, int ss_index);
     void link_update(int ss_index);
     void link_growth_limits(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits);
+    void link_growth_limits1(std::vector<int> helix, int alpha, int beta, std::vector<std::vector<int>>& growth_limits, bool forward_move = true);
+
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // unlink specific functions
     void sample_unlink_region(int& helix_index);
@@ -160,16 +164,26 @@ public:
     double configuration_energy();
     void add_linker_weight(bool link_move);
     double get_hairpin_weight();
+
+    double get_subsection_weight(std::vector<int> limit, bool new_config);
+    double get_hairpin_weight(bool new_weight);
     double get_helix_weight();
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    void link_move();
-    void unlink_move();
+    //void link_move(int multiples_ds=0);
+    void link_move(bool& overstretch_reject, int multiple_ds=0);
+
+    //void unlink_move();
+    void unlink_move(bool& overstretch_reject);
     void force_unbound_state();
     void set_link_acceptance_prefactor(double prefactor, double multiplier=-1);
     double get_link_acceptance_prefactor();
     
     void set_search_results(std::vector<int> helix);
+    void set_search_results(std::vector<std::vector<int>>& helices);
+
     int get_num_monomers();
     int get_num_helices();
+    double get_old_config_weight();
+    double get_new_config_weight();
 };
 

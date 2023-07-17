@@ -14,7 +14,6 @@ private:
 	//std::vector<int> monomer_limits;
 
 
-
 public:
 
 	rosenbluth_growth(int length);
@@ -42,6 +41,7 @@ public:
 	rosenbluth_growth& operator=(const rosenbluth_growth& rhs);
 };
 
+void set_WCA_parameter(double epsilon);
 double weeks_chandler_ij(std::vector<double> position_i, std::vector<double> position_j);
 double u_r(std::vector<double> r, std::vector<std::vector<double>> positions_ij);// the potential energy of a monomer
 // at position r due to the excluded volume interaction (weeks chandler above) with existing monomers.

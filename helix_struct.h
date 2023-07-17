@@ -30,7 +30,7 @@ public:
 	int get_origin();
 	std::vector<int> get_monomers(), get_extension();
 	std::vector<double> get_rc(int index);// get running centre.
-
+	
 
 	void set_extension(std::vector<int> big_struct);
 	void set_origin(int o);

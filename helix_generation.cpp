@@ -318,6 +318,6 @@ double sideways_length(int n)
 
     return dist_2_points3d(s_x[0], s_y[0]);
 
-    //return sqrt(pow(side_length(n), 2) + pow(helix_separation(), 2));
+    //return sqrt(std::pow(side_length(n), 2) + std::pow(helix_separation(), 2));
 }
 

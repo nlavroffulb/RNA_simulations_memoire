@@ -2,7 +2,8 @@
 #include <algorithm>
 //#include "rosenbluth_sampling.h"
 double const a{ 1.0 };
-int trials{ 5 };
+int trials{ 50 };
+double epsilon_WCA{ 1.0 };
 
 rosenbluth_growth::rosenbluth_growth(int length)
 {
@@ -159,8 +160,8 @@ rosenbluth_growth& rosenbluth_growth::operator=(const rosenbluth_growth& rhs)
 // that the chain was grown although this is not explicitly taken into account in this function. (it should have been configured 
 // beforehand in such a way that it is taken into account).
 double rosenbluth_growth::subsection_probability(std::vector<int> &limit) {
-	//int l{ abs(limit[1] - limit[0]) + 1 };
-	int l{ abs(limit[1] - limit[0])+1};
+	//int l{ std::abs(limit[1] - limit[0]) + 1 };
+	int l{ std::abs(limit[1] - limit[0])+1};
 
 	double prod{ 1 };
 
@@ -197,19 +198,26 @@ double configuration_probability(std::vector<double>& energies, std::vector<doub
 //*****************************************************************************************************************//
 //*****************************************************************************************************************//
 
+void set_WCA_parameter(double epsilon)
+{
+	epsilon_WCA = epsilon;
+}
+
 double weeks_chandler_ij(std::vector<double> position_i, std::vector<double> position_j) {// this is actually the 
+	return 0.0;
+	
 	// weeks chandler andersen intermolecular pair potential (which is a function of the LJ potential)
 	if (!position_i.empty() && !position_j.empty()) {
 		double r_ij{ dist_2_points3d(position_i,position_j) };
 
-		if (r_ij <= a * pow(2, 1.0 / 6.0)) {
-			//if (4 * (pow(a / r_ij, 12) - pow(a / r_ij, 6)) + 1 > 1000) {
+		if (r_ij <= a * std::pow(2, 1.0 / 6.0)) {
+			//if (4 * (std::pow(a / r_ij, 12) - std::pow(a / r_ij, 6)) + 1 > 1000) {
 			//	std::cout << "stop" << std::endl;
 			//}
 
-			return 4 * (pow(a / r_ij, 12) - pow(a / r_ij, 6)) + 1;
+			return 4 * epsilon_WCA* (std::pow(a / r_ij, 12) - std::pow(a / r_ij, 6)) + epsilon_WCA;
 		}
-		else if (r_ij > a * pow(2, 1.0 / 6.0)) {
+		else if (r_ij > a * std::pow(2, 1.0 / 6.0)) {
 			return 0;
 		}
 
@@ -217,6 +225,7 @@ double weeks_chandler_ij(std::vector<double> position_i, std::vector<double> pos
 }
 
 double u_r(std::vector<double> r, std::vector<std::vector<double>> positions_ij) {
+	//return -std::log(2);
 	double summand{ 0 };
 	for (int j{ 0 }; j < positions_ij.size(); j++) {
 		//sometimes we will calculate u(r) and positions_ij will be basically empty.
@@ -251,14 +260,9 @@ std::vector<double> select_trial(std::vector<std::vector<double>>& trial_positio
 
 	bins[0] = 0;
 	double summand{ 0 };
-	for (auto i : excluded_volume) {
-		if (i.size() == 0) {
-			break;
-		}
-	}
 	for (int j{ 0 }; j < trial_positions.size(); j++) {
 		//std::cout << "trial " << j << std::endl;
-		summand += exp(-u_r(trial_positions[j], excluded_volume));
+		summand = summand +  exp(-u_r(trial_positions[j], excluded_volume));
 
 		bins[j + 1] = summand;
 	}
@@ -361,7 +365,12 @@ void rosenbluth_sample_helix_vectors(int n, std::vector<double> &origin, std::ve
 			selection = trials - 1;
 		}
 		//rosenbluth_factor = boltzmann_weights[selection]*trials/cumulative_sum_of_weights;
-		rosenbluth_factor = cumulative_sum_of_weights / k;
+		if (forward_move == false) {
+			rosenbluth_factor = cumulative_sum_of_weights / (k+1);
+		}
+		else {
+			rosenbluth_factor = cumulative_sum_of_weights / k;
+		}
 	}
 }
 
@@ -497,7 +506,9 @@ std::vector<std::vector<double>> grow_section(std::vector<std::vector<double>>& 
 		//5 monomers in total in the flexible chain. 
 
 		for (int i = 1; i <= segments - 1; i++) {
-
+			//if (i == segments - 2) {
+			//	std::cout << "stop" << std::endl;
+			//}
 			if (segments - i > 1) {
 
 				i_segments = segments - i;
@@ -546,6 +557,9 @@ std::vector<std::vector<double>> grow_section(std::vector<std::vector<double>>& 
 					// the trial. all we're interested in when we call select trial here is that it returns the weight and energy
 					// by reference.
 					select_trial(trial_positions, excluded_volumes, weights[i - 1], energies[i - 1], &selection);
+					//if (weights[i - 1] == 0) {
+					//	std::cout << "stop" << std::endl;
+					//}
 				}
 				else {
 					generated_position = select_trial(trial_positions, excluded_volumes, weights[i - 1], energies[i - 1]);
@@ -606,8 +620,15 @@ std::vector<std::vector<double>> grow_section(std::vector<std::vector<double>>& 
 
 std::vector<double> rosenbluth_sample_translate(std::vector<std::vector<double>>& old_helix_positions, std::vector<std::vector<double>>& excluded_volume, double translation_distance, bool forward_move, double &rosenbluth_weight)
 {
-	int k{trials};
 	std::vector<double> trial_translation(3);
+
+	if (excluded_volume.size() == 0) {
+		sample_jump_direction(trial_translation, translation_distance);
+		return trial_translation;
+	}
+
+
+	int k{trials};
 	std::vector<std::vector<double>> trial_helix_positions(old_helix_positions.size());
 	double cumulative_weight{ 0 }, trial_energy{ 0 };
 	if (forward_move == false) {
@@ -627,16 +648,13 @@ std::vector<double> rosenbluth_sample_translate(std::vector<std::vector<double>>
 	bins[0] = 0;
 
 	for (int i = 0; i < k; i++) {
-		if (i == k - 2) {
-			std::cout << "stop" << std::endl;
-		}
 
 		trial_energy = 0;
 		sample_jump_direction(trial_translation, translation_distance);
 		translations[i] = trial_translation;
 		for (int j{ 0 }; j < old_helix_positions.size();j++){
-			trial_helix_positions[i] = vector_addition(old_helix_positions[i], trial_translation);
-			trial_energy += u_r(trial_helix_positions[i], excluded_volume);
+			trial_helix_positions[j] = vector_addition(old_helix_positions[j], trial_translation);
+			trial_energy += u_r(trial_helix_positions[j], excluded_volume);
 		}
 		if (trial_energy > 200) {//the weight will be 0 in this case. so we will catch this later in the acceptance rule and reject the move.
 			rosenbluth_weight = 0;
@@ -647,7 +665,7 @@ std::vector<double> rosenbluth_sample_translate(std::vector<std::vector<double>>
 		}
 		
 	}
-	int selection;
+	int selection{0};
 	if (forward_move == true) {
 		double rn{ rand2(0,1) * cumulative_weight };
 		for (int l{ 1 }; l < bins.size(); l++) {
@@ -656,20 +674,28 @@ std::vector<double> rosenbluth_sample_translate(std::vector<std::vector<double>>
 				break;
 			}
 		}
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight / k;
 		return translations[selection];
 		
 	}
 	else {
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight / (k + 1);
 		return { 0,0,0 };
 	}
 }
 
 double rosenbluth_sample_corkscrew(helix_struct* dh, std::vector<std::vector<double>>& old_helix_positions, std::vector<std::vector<double>>& excluded_volume, double max_angle, bool forward_move, double& rosenbluth_weight)
 {
-	int k{ trials };
 	double trial_angle;
+
+	if (excluded_volume.size() == 0) {
+		trial_angle = rand2(0, max_angle);
+		rosenbluth_weight = 1.0;
+		return trial_angle;
+	}
+
+
+	int k{ trials };
 	std::vector < std::vector<double>> trial_helix_positions(old_helix_positions.size());
 	double cumulative_weight{ 0 }, trial_energy{ 0 };
 	if (forward_move == false) {
@@ -690,16 +716,13 @@ double rosenbluth_sample_corkscrew(helix_struct* dh, std::vector<std::vector<dou
 
 	for (int i = 0; i < k; i++)
 	{
-		if (i == k - 2) {
-			std::cout << "stop" << std::endl;
-		}
 		trial_energy = 0;
 		trial_angle = rand2(0, max_angle);
 		trial_helix_positions = generate_corkscrew(dh, old_helix_positions, trial_angle);
 		trial_angles[i] = trial_angle;
 
 		for (int j{ 0 }; j < trial_helix_positions.size(); j++) {
-			trial_energy += u_r(trial_helix_positions[i], excluded_volume);
+			trial_energy += u_r(trial_helix_positions[j], excluded_volume);
 		}
 		if (trial_energy > 200) {//the weight will be 0 in this case. so we will catch this later in the acceptance rule and reject the move.
 			rosenbluth_weight = 0;
@@ -720,12 +743,13 @@ double rosenbluth_sample_corkscrew(helix_struct* dh, std::vector<std::vector<dou
 				break;
 			}
 		}
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight / k;
+
 		return trial_angles[selection];
 
 	}
 	else {
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight / (k + 1);
 		return 0.0;
 	}
 
@@ -743,7 +767,7 @@ std::vector<std::vector<double>> generate_corkscrew(helix_struct* dh, std::vecto
 	std::vector<double> running_centre(3);
 	beta == 0 ? running_centre = dh->get_rc(beta) : running_centre = dh->get_rc(1 - beta);
 
-	int n{ abs(s[0] - s[1]) + 1 };
+	int n{ std::abs(s[0] - s[1]) + 1 };
 
 	// starting pair to be rotated depends on beta
 	int m1, m2;
@@ -756,7 +780,7 @@ std::vector<std::vector<double>> generate_corkscrew(helix_struct* dh, std::vecto
 		m1 = helix_positions.size()/2;
 		m2 = -1+ helix_positions.size() / 2;
 	}
-	int gamma{ static_cast<int>(pow(-1,beta)) };
+	int gamma{ static_cast<int>(std::pow(-1,beta)) };
 	double pitch{ 0.28 };
 	std::vector<double> temp{ multiplication_by_scalar(pitch, v) };
 
@@ -788,6 +812,13 @@ std::vector<std::vector<double>> generate_corkscrew(helix_struct* dh, std::vecto
 
 void rosenbluth_sample_spin(helix_struct* dh, std::vector<std::vector<double>>& old_helix_positions, std::vector<std::vector<double>>& excluded_volume, bool forward_move, double& rosenbluth_weight, double& selected_angle, std::vector<double>& selected_rot_axis)
 {
+
+	if (excluded_volume.size() == 0) {
+		generate_spin(dh, old_helix_positions, selected_angle, selected_rot_axis);
+		rosenbluth_weight = 1.0;
+		return;
+	}
+
 	int k{ trials };
 	std::vector < std::vector<double>> trial_helix_positions(old_helix_positions.size());
 	double cumulative_weight{ 0 }, trial_energy{ 0 };
@@ -810,9 +841,6 @@ void rosenbluth_sample_spin(helix_struct* dh, std::vector<std::vector<double>>& 
 	bins[0] = 0;
 
 	for (int i = 0; i < k; i++) {
-		if (i == k - 2) {
-			std::cout << "stop" << std::endl;
-		}
 
 		trial_energy = 0;
 		trial_helix_positions = generate_spin(dh, old_helix_positions, trial_angle, trial_rotation_axis);
@@ -821,7 +849,7 @@ void rosenbluth_sample_spin(helix_struct* dh, std::vector<std::vector<double>>& 
 		trial_rotation_axes[i] = trial_rotation_axis;
 
 		for (int j{ 0 }; j < old_helix_positions.size(); j++) {
-			trial_energy += u_r(trial_helix_positions[i], excluded_volume);
+			trial_energy += u_r(trial_helix_positions[j], excluded_volume);
 		}
 		if (trial_energy > 200) {//the weight will be 0 in this case. so we will catch this later in the acceptance rule and reject the move.
 			rosenbluth_weight = 0;
@@ -844,14 +872,14 @@ void rosenbluth_sample_spin(helix_struct* dh, std::vector<std::vector<double>>& 
 				break;
 			}
 		}
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight/k;
 		selected_angle = trial_angles[selection];
 		selected_rot_axis = trial_rotation_axes[selection];
 		return;
 
 	}
 	else {
-		rosenbluth_weight = cumulative_weight;
+		rosenbluth_weight = cumulative_weight/(k+1);
 		return;
 	}
 
